@@ -7,6 +7,20 @@ public class ChangeLog
 {
     public static readonly IReadOnlyList<SingleVersionChangelog> Entries = new List<SingleVersionChangelog>
     {
+        new(new Version(1, 6, 2, 4))
+        {
+            MinorFeatures =
+            {
+                new ChangeLogEntry(Bugfix, "Fix wrongly displayed Tome gear"),
+            },
+        },
+        new(new Version(1, 6, 2, 3))
+        {
+            MinorFeatures =
+            {
+                new ChangeLogEntry(Lootmaster, "Add savage loot information"),
+            },
+        },
         new(new Version(1, 6, 2, 2))
         {
             MinorFeatures =
