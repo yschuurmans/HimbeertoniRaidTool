@@ -8,27 +8,6 @@
         "resolved": "2.1.13",
         "contentHash": "rMN1omGe8536f4xLMvx9NwfvpAc9YFFfeXJ1t4P4PE6Gu8WCIoFliR1sh07hM+bfODmesk/dvMbji7vNI+B/pQ=="
       },
-      "Google.Apis.Sheets.v4": {
-        "type": "Direct",
-        "requested": "[1.68.0.3498, )",
-        "resolved": "1.68.0.3498",
-        "contentHash": "9w4l0JCbXs9JF8XsacgoAb0lRb/EimQOPGCZ6MzRqs7ASJWBqdr9oXZG7H5y1n9AoH+CE1BycBVUuBcWwoPcmw==",
-        "dependencies": {
-          "Google.Apis": "1.68.0",
-          "Google.Apis.Auth": "1.68.0"
-        }
-      },
-      "GoogleSheetsWrapper": {
-        "type": "Direct",
-        "requested": "[2.0.17, )",
-        "resolved": "2.0.17",
-        "contentHash": "a+TCuzGhq/AsRX3XuCeQbGDNbUO7gedePdlbe0RiIXmy7r6n0+RK1y/qBbwEvVClR9f/EFDBqt0v0YMMC/FfTw==",
-        "dependencies": {
-          "CsvHelper": "33.0.1",
-          "DocumentFormat.OpenXml": "3.0.2",
-          "Google.Apis.Sheets.v4": "1.68.0.3476"
-        }
-      },
       "NetStone": {
         "type": "Direct",
         "requested": "[1.2.1, )",
@@ -37,53 +16,6 @@
         "dependencies": {
           "HtmlAgilityPack": "1.11.46",
           "Karashiiro.HtmlAgilityPack.CssSelectors.NetCoreFork": "0.0.2",
-          "Newtonsoft.Json": "13.0.3"
-        }
-      },
-      "CsvHelper": {
-        "type": "Transitive",
-        "resolved": "33.0.1",
-        "contentHash": "fev4lynklAU2A9GVMLtwarkwaanjSYB4wUqO2nOJX5hnzObORzUqVLe+bDYCUyIIRQM4o5Bsq3CcyJR89iMmEQ=="
-      },
-      "DocumentFormat.OpenXml": {
-        "type": "Transitive",
-        "resolved": "3.0.2",
-        "contentHash": "gqjP/BxKWgwAWwPAN+RpKaMOiidPM07F+mAxiiW184/MnkHnkk12Qo7cRB0wuq4kOZUrUzQ9EUO966hUy/wKBw==",
-        "dependencies": {
-          "DocumentFormat.OpenXml.Framework": "3.0.2"
-        }
-      },
-      "DocumentFormat.OpenXml.Framework": {
-        "type": "Transitive",
-        "resolved": "3.0.2",
-        "contentHash": "ILRCJu2dUJDv27ZCQDftD7AZSuBgKg+ZSUF9dg2dk8qcIED7oM42y/cvZIm0mev80nj2QMzpxthX87+AebzHug==",
-        "dependencies": {
-          "System.IO.Packaging": "8.0.0"
-        }
-      },
-      "Google.Apis": {
-        "type": "Transitive",
-        "resolved": "1.68.0",
-        "contentHash": "s2MymhdpH+ybZNBeZ2J5uFgFHApBp+QXf9FjZSdM1lk/vx5VqIknJwnaWiuAzXxPrLEkesX0Q+UsiWn39yZ9zw==",
-        "dependencies": {
-          "Google.Apis.Core": "1.68.0"
-        }
-      },
-      "Google.Apis.Auth": {
-        "type": "Transitive",
-        "resolved": "1.68.0",
-        "contentHash": "hFx8Qz5bZ4w0hpnn4tSmZaaFpjAMsgVElZ+ZgVLUZ2r9i+AKcoVgwiNfv1pruNS5cCvpXqhKECbruBCfRezPHA==",
-        "dependencies": {
-          "Google.Apis": "1.68.0",
-          "Google.Apis.Core": "1.68.0",
-          "System.Management": "7.0.2"
-        }
-      },
-      "Google.Apis.Core": {
-        "type": "Transitive",
-        "resolved": "1.68.0",
-        "contentHash": "pAqwa6pfu53UXCR2b7A/PAPXeuVg6L1OFw38WckN27NU2+mf+KTjoEg2YGv/f0UyKxzz7DxF1urOTKg/6dTP9g==",
-        "dependencies": {
           "Newtonsoft.Json": "13.0.3"
         }
       },
@@ -117,24 +49,6 @@
         "type": "Transitive",
         "resolved": "13.0.3",
         "contentHash": "HrC5BXdl00IP9zeV+0Z848QWPAoCr9P3bDEZguI+gkLcBKAOxix/tLEAAHC+UvDNPv4a2d18lOReHMOagPa+zQ=="
-      },
-      "System.CodeDom": {
-        "type": "Transitive",
-        "resolved": "7.0.0",
-        "contentHash": "GLltyqEsE5/3IE+zYRP5sNa1l44qKl9v+bfdMcwg+M9qnQf47wK3H0SUR/T+3N4JEQXF3vV4CSuuo0rsg+nq2A=="
-      },
-      "System.IO.Packaging": {
-        "type": "Transitive",
-        "resolved": "8.0.0",
-        "contentHash": "8g1V4YRpdGAxFcK8v9OjuMdIOJSpF30Zb1JGicwVZhly3I994WFyBdV6mQEo8d3T+URQe55/M0U0eIH0Hts1bg=="
-      },
-      "System.Management": {
-        "type": "Transitive",
-        "resolved": "7.0.2",
-        "contentHash": "/qEUN91mP/MUQmJnM5y5BdT7ZoPuVrtxnFlbJ8a3kBJGhe2wCzBfnPFtK2wTtEEcf3DMGR9J00GZZfg6HRI6yA==",
-        "dependencies": {
-          "System.CodeDom": "7.0.0"
-        }
       },
       "XIVCalc": {
         "type": "Transitive",
