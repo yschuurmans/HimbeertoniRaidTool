@@ -1,9 +1,4 @@
-﻿
-using Google.Apis.Auth.OAuth2;
-using Google.Apis.Services;
-using Google.Apis.Sheets.v4;
-using Google.Apis.Sheets.v4.Data;
-using ImGuiNET;
+﻿using ImGuiNET;
 using Newtonsoft.Json;
 using System.IO;
 using System.Threading.Tasks;
@@ -117,94 +112,94 @@ public class Exporter
     //}
 
     // The above code block is made with a different library. Rewrite the UploadToSpreadsheet method using the Google.Apis.Sheets.v4 library
-    private static async Task UploadToSpreadsheet(string groupData)
-    {
-        // Google Sheets API configuration
-        string[] Scopes = { SheetsService.Scope.Spreadsheets };
-        string ApplicationName = "Your Application Name";
+    //private static async Task UploadToSpreadsheet(string groupData)
+    //{
+    //    // Google Sheets API configuration
+    //    string[] Scopes = { SheetsService.Scope.Spreadsheets };
+    //    string ApplicationName = "Your Application Name";
 
-        var googleConfigLocation = Path.Combine(BaseFolder, "googleConfig.json");
+    //    var googleConfigLocation = Path.Combine(BaseFolder, "googleConfig.json");
 
-        // Read or create configuration file
-        if (!File.Exists(googleConfigLocation))
-        {
-            var newConfig = new
-            {
-                GOOGLE_SERVICE_ACCOUNT = "your-service-account",
-                GOOGLE_SPREADSHEET_ID = "your-spreadsheet-id",
-                GOOGLE_JSON_CREDS_PATH = "path-to-your-json-creds"
-            };
-            var newJson = JsonConvert.SerializeObject(newConfig, Formatting.Indented);
-            File.WriteAllText(googleConfigLocation, newJson);
-        }
+    //    // Read or create configuration file
+    //    if (!File.Exists(googleConfigLocation))
+    //    {
+    //        var newConfig = new
+    //        {
+    //            GOOGLE_SERVICE_ACCOUNT = "your-service-account",
+    //            GOOGLE_SPREADSHEET_ID = "your-spreadsheet-id",
+    //            GOOGLE_JSON_CREDS_PATH = "path-to-your-json-creds"
+    //        };
+    //        var newJson = JsonConvert.SerializeObject(newConfig, Formatting.Indented);
+    //        File.WriteAllText(googleConfigLocation, newJson);
+    //    }
 
-        var json = File.ReadAllText(googleConfigLocation);
-        var config = JsonConvert.DeserializeObject<GoogleConfig>(json);
+    //    var json = File.ReadAllText(googleConfigLocation);
+    //    var config = JsonConvert.DeserializeObject<GoogleConfig>(json);
 
-        if (config == null || config.GOOGLE_SERVICE_ACCOUNT == "your-service-account")
-        {
-            Console.WriteLine("Config file is missing or invalid");
-            return;
-        }
+    //    if (config == null || config.GOOGLE_SERVICE_ACCOUNT == "your-service-account")
+    //    {
+    //        Console.WriteLine("Config file is missing or invalid");
+    //        return;
+    //    }
 
-        // Get the Google Spreadsheet Config Values
-        var serviceAccount = config.GOOGLE_SERVICE_ACCOUNT;
-        var documentId = config.GOOGLE_SPREADSHEET_ID;
-        var jsonCredsPath = config.GOOGLE_JSON_CREDS_PATH;
+    //    // Get the Google Spreadsheet Config Values
+    //    var serviceAccount = config.GOOGLE_SERVICE_ACCOUNT;
+    //    var documentId = config.GOOGLE_SPREADSHEET_ID;
+    //    var jsonCredsPath = config.GOOGLE_JSON_CREDS_PATH;
 
-        // Authorize and create the Sheets API service
-        var service = AuthorizeGoogleService(jsonCredsPath, Scopes, ApplicationName);
+    //    // Authorize and create the Sheets API service
+    //    var service = AuthorizeGoogleService(jsonCredsPath, Scopes, ApplicationName);
 
-        // Specify the range in which to update the data
-        string range = "X53:X53"; // Adjust the range according to your needs
+    //    // Specify the range in which to update the data
+    //    string range = "X53:X53"; // Adjust the range according to your needs
 
-        // Prepare data to be updated in the sheet
-        var values = new List<IList<object>> { new List<object> { groupData } };
+    //    // Prepare data to be updated in the sheet
+    //    var values = new List<IList<object>> { new List<object> { groupData } };
 
-        // Call the batch update method to update the sheet
-        UpdateGoogleSheet(values, documentId, range, service);
+    //    // Call the batch update method to update the sheet
+    //    UpdateGoogleSheet(values, documentId, range, service);
 
-        await Task.Delay(50);
-    }
+    //    await Task.Delay(50);
+    //}
 
-    private static SheetsService AuthorizeGoogleService(string jsonCredsPath, string[] scopes, string applicationName)
-    {
-        GoogleCredential credential;
+    //private static SheetsService AuthorizeGoogleService(string jsonCredsPath, string[] scopes, string applicationName)
+    //{
+    //    GoogleCredential credential;
 
-        using (var stream = new FileStream(jsonCredsPath, FileMode.Open, FileAccess.Read))
-        {
-            credential = GoogleCredential.FromStream(stream).CreateScoped(scopes);
-        }
+    //    using (var stream = new FileStream(jsonCredsPath, FileMode.Open, FileAccess.Read))
+    //    {
+    //        credential = GoogleCredential.FromStream(stream).CreateScoped(scopes);
+    //    }
 
-        // Create Google Sheets API service.
-        var service = new SheetsService(new BaseClientService.Initializer()
-        {
-            HttpClientInitializer = credential,
-            ApplicationName = applicationName,
-        });
+    //    // Create Google Sheets API service.
+    //    var service = new SheetsService(new BaseClientService.Initializer()
+    //    {
+    //        HttpClientInitializer = credential,
+    //        ApplicationName = applicationName,
+    //    });
 
-        return service;
-    }
+    //    return service;
+    //}
 
-    private static void UpdateGoogleSheet(IList<IList<object>> values, string spreadsheetId, string range, SheetsService service)
-    {
-        var valueRange = new ValueRange
-        {
-            Values = values
-        };
+    //private static void UpdateGoogleSheet(IList<IList<object>> values, string spreadsheetId, string range, SheetsService service)
+    //{
+    //    var valueRange = new ValueRange
+    //    {
+    //        Values = values
+    //    };
 
-        var request = service.Spreadsheets.Values.Update(valueRange, spreadsheetId, range);
-        request.ValueInputOption = SpreadsheetsResource.ValuesResource.UpdateRequest.ValueInputOptionEnum.USERENTERED;
-        var response = request.Execute();
-    }
+    //    var request = service.Spreadsheets.Values.Update(valueRange, spreadsheetId, range);
+    //    request.ValueInputOption = SpreadsheetsResource.ValuesResource.UpdateRequest.ValueInputOptionEnum.USERENTERED;
+    //    var response = request.Execute();
+    //}
 
 
-    private class GoogleConfig
-    {
-        public string GOOGLE_SERVICE_ACCOUNT { get; set; }
-        public string GOOGLE_SPREADSHEET_ID { get; set; }
-        public string GOOGLE_JSON_CREDS_PATH { get; set; }
-    }
+    //private class GoogleConfig
+    //{
+    //    public string GOOGLE_SERVICE_ACCOUNT { get; set; }
+    //    public string GOOGLE_SPREADSHEET_ID { get; set; }
+    //    public string GOOGLE_JSON_CREDS_PATH { get; set; }
+    //}
 }
 
 
