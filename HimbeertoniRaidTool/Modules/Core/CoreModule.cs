@@ -18,6 +18,7 @@ internal class CoreModule : IHrtModule
 
     public CoreModule()
     {
+        CoreLoc.Culture = new CultureInfo(ServiceManager.PluginInterface.UiLanguage);
         WindowSystem = new DalamudWindowSystem(new WindowSystem(InternalName));
         _wcw = new WelcomeWindow(this);
         WindowSystem.AddWindow(_wcw);
@@ -188,18 +189,22 @@ internal class CoreModule : IHrtModule
                 RestrictToCustomILvL: _config.Data.GearUpdateRestrictToCustomILvL) switch
             {
                 (true, true) => Math.Min(
-                    (ServiceManager.GameInfo.CurrentExpansion.CurrentSavage?.ArmorItemLevel ?? 20) - 20,
+                    (ServiceManager.GameInfo.PreviousSavageTier?.ArmorItemLevel ?? -10) + 10,
                     _config.Data.GearUpdateCustomILvlCutoff),
-                (true, false) => (ServiceManager.GameInfo.CurrentExpansion.CurrentSavage?.ArmorItemLevel ?? 20) - 20,
+                (true, false) => (ServiceManager.GameInfo.PreviousSavageTier?.ArmorItemLevel ?? -10) + 10,
                 (false, true) => _config.Data.GearUpdateCustomILvlCutoff,
                 _             => 0,
             };
 
-        var newConfig = new GearDataProviderConfiguration(_config.Data.UpdateOwnData, _config.Data.UpdateCombatJobs,
-                                                          _config.Data.UpdateDoHJobs, _config.Data.UpdateDoLJobs,
-                                                          minILvl);
-        ServiceManager.OwnCharacterDataProvider.Enable(newConfig);
-        ServiceManager.ExamineGearDataProvider.Enable(newConfig);
+        var newOwnConfig = new GearDataProviderConfiguration(_config.Data.UpdateOwnData, _config.Data.UpdateCombatJobs,
+                                                             _config.Data.UpdateDoHJobs, _config.Data.UpdateDoLJobs,
+                                                             minILvl);
+        var newExamineConfig = new GearDataProviderConfiguration(_config.Data.UpdateGearOnExamine,
+                                                                 _config.Data.UpdateCombatJobs,
+                                                                 _config.Data.UpdateDoHJobs, _config.Data.UpdateDoLJobs,
+                                                                 minILvl);
+        ServiceManager.OwnCharacterDataProvider.Enable(newOwnConfig);
+        ServiceManager.ExamineGearDataProvider.Enable(newExamineConfig);
     }
 
     private class ChangelogOptionsWrapper(CoreConfig coreConfig) : ChangeLog.IConfigOptions

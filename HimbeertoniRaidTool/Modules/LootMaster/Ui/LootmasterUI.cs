@@ -18,7 +18,7 @@ internal class LootmasterUi : HrtWindow
     private readonly Queue<HrtUiMessage> _messageQueue = new();
     private (HrtUiMessage message, DateTime time)? _currentMessage;
 
-    internal LootmasterUi(LootMasterModule lootMaster) : base("LootMaster")
+    internal LootmasterUi(LootMasterModule lootMaster) : base("LootMaster", ImGuiWindowFlags.HorizontalScrollbar)
     {
         _lootMaster = lootMaster;
         CurrentGroupIndex = 0;
@@ -104,7 +104,7 @@ internal class LootmasterUi : HrtWindow
         /*
          * Job Selection
          */
-        ImGui.Text($"{p.NickName} : {p.MainChar.Name} @ {p.MainChar.HomeWorld?.Name ?? "n.A"}");
+        ImGui.Text($"{p.NickName} : {string.Format($"{{0:{CurConfig.CharacterNameFormat}}}", p.MainChar)}");
         ImGui.SameLine();
 
         ImGuiHelper.GearUpdateButtons(p, _lootMaster, true);
@@ -115,23 +115,24 @@ internal class LootmasterUi : HrtWindow
         if (ImGuiHelper.EditButton(p.MainChar, $"##EditCharacter{p.NickName}"))
             AddChild(EditWindowFactory.Create(p.MainChar));
         ImGui.BeginChild("JobList");
+        Action? deferredAction = null;
         foreach (PlayableClass playableClass in p.MainChar.Classes.Where(c => !c.HideInUi))
         {
             ImGui.PushID($"{playableClass.Job}");
             ImGui.Separator();
             ImGui.Spacing();
             if (ImGuiHelper.DeleteButton(playableClass, "##delete"))
-                p.MainChar.RemoveClass(playableClass.Job);
+                deferredAction = () => p.MainChar.RemoveClass(playableClass.Job);
             ImGui.SameLine();
             if (ImGuiHelper.Button(FontAwesomeIcon.ArrowUp, "##jobUp",
                                    string.Format(GeneralLoc.SortableList_btn_tt_moveUp, playableClass.DataTypeName),
                                    p.MainChar.CanMoveUp(playableClass)))
-                p.MainChar.MoveClassUp(playableClass);
+                deferredAction = () => p.MainChar.MoveClassUp(playableClass);
             ImGui.SameLine();
             if (ImGuiHelper.Button(FontAwesomeIcon.ArrowDown, "##jobDown",
                                    string.Format(GeneralLoc.SortableList_btn_tt_moveDown, playableClass.DataTypeName),
                                    p.MainChar.CanMoveDown(playableClass)))
-                p.MainChar.MoveClassDown(playableClass);
+                deferredAction = () => p.MainChar.MoveClassDown(playableClass);
             bool isMainJob = p.MainChar.MainJob == playableClass.Job;
 
             if (isMainJob)
@@ -186,6 +187,7 @@ internal class LootmasterUi : HrtWindow
         }
 
         ImGui.EndChild();
+        deferredAction?.Invoke();
         /*
          * Stat Table
          */
@@ -283,12 +285,13 @@ internal class LootmasterUi : HrtWindow
         }
         else
         {
+            ImGui.SetNextItemWidth(800 * ScaleFactor);
             if (ImGui.BeginTable("##RaidGroup", 15,
-                                 ImGuiTableFlags.Borders | ImGuiTableFlags.SizingStretchProp | ImGuiTableFlags.RowBg))
+                                 ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.SizingStretchProp))
             {
-                ImGui.TableSetupColumn(LootmasterLoc.Ui_MainTable_Col_Sort);
-                ImGui.TableSetupColumn(LootmasterLoc.Ui_MainTable_Col_Player);
-                ImGui.TableSetupColumn(GeneralLoc.CommonTerms_Gear);
+                ImGui.TableSetupColumn(LootmasterLoc.Ui_MainTable_Col_Sort, ImGuiTableColumnFlags.WidthFixed);
+                ImGui.TableSetupColumn(LootmasterLoc.Ui_MainTable_Col_Player, ImGuiTableColumnFlags.WidthFixed);
+                ImGui.TableSetupColumn(GeneralLoc.CommonTerms_Gear.CapitalizedSentence(), ImGuiTableColumnFlags.WidthFixed);
                 foreach (GearSetSlot slot in GearSet.Slots)
                 {
                     if (slot == GearSetSlot.OffHand)
@@ -296,7 +299,7 @@ internal class LootmasterUi : HrtWindow
                     ImGui.TableSetupColumn(slot.FriendlyName(true));
                 }
 
-                ImGui.TableSetupColumn(string.Empty);
+                ImGui.TableSetupColumn(string.Empty, ImGuiTableColumnFlags.WidthFixed);
                 ImGui.TableHeadersRow();
                 for (int position = 0; position < CurrentGroup.Count; position++)
                 {
@@ -404,7 +407,7 @@ internal class LootmasterUi : HrtWindow
             ImGui.SameLine();
             if (ImGuiHelper.EditButton(player, "##editPlayer"))
                 AddChild(EditWindowFactory.Create(player));
-            ImGui.Text($"{player.MainChar}");
+            ImGui.Text(string.Format($"{{0:{CurConfig.CharacterNameFormat}}}", player.MainChar));
             ImGui.SameLine();
             if (ImGuiHelper.EditButton(player.MainChar, "##editCharacter"))
                 AddChild(EditWindowFactory.Create(player.MainChar));

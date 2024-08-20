@@ -1,4 +1,5 @@
-﻿using HimbeertoniRaidTool.Plugin.Modules.Core.Ui;
+﻿using HimbeertoniRaidTool.Plugin.Localization;
+using HimbeertoniRaidTool.Plugin.Modules.Core.Ui;
 using static HimbeertoniRaidTool.Plugin.Modules.Core.ChangeLogEntryCategory;
 
 namespace HimbeertoniRaidTool.Plugin.Modules.Core;
@@ -7,6 +8,52 @@ public class ChangeLog
 {
     public static readonly IReadOnlyList<SingleVersionChangelog> Entries = new List<SingleVersionChangelog>
     {
+
+        new(new Version(1, 6, 2, 9))
+        {
+            MinorFeatures =
+            {
+                new ChangeLogEntry(
+                    Bugfix,
+                    $"\"{CoreLoc.ConfigUi_cb_ignorePrevTierGear}\" option now works correctly if last raid tier was in a previous expansion"),
+                new ChangeLogEntry(
+                    Bugfix,
+                    $"Updating gear by examining now works again if \"{CoreLoc.ConfigUi_cb_ownData}\" is disbaled"),
+            },
+        },
+        new(new Version(1, 6, 2, 8))
+        {
+            NotableFeatures =
+            {
+                new ChangeLogEntry(ChangeLogEntryCategory.Ui,
+                                   "You can now adjust the way character names are displayed (see config)"),
+            },
+            MinorFeatures =
+            {
+                new ChangeLogEntry(ChangeLogEntryCategory.Ui, "Make all buttons accessible in smaller windows"),
+            },
+        },
+        new(new Version(1, 6, 2, 7))
+        {
+            MinorFeatures =
+            {
+                new ChangeLogEntry(Bugfix, "Fix update from lodestone", 151),
+            },
+        },
+        new(new Version(1, 6, 2, 6))
+        {
+            MinorFeatures =
+            {
+                new ChangeLogEntry(Bugfix, "Fix loot being inaccurate"),
+            },
+        },
+        new(new Version(1, 6, 2, 5))
+        {
+            MinorFeatures =
+            {
+                new ChangeLogEntry(Bugfix, "Fix missing materia in etro sets"),
+            },
+        },
         new(new Version(1, 6, 2, 4))
         {
             MinorFeatures =

@@ -64,14 +64,20 @@ internal class ExamineGearDataProvider : IGearDataProvider
     {
         if (!_configuration.Enabled)
             return;
-        uint objId;
+        uint entityId;
         unsafe
         {
-            objId = AgentInspect.Instance()->CurrentEntityId;
+            entityId = AgentInspect.Instance()->CurrentEntityId;
         }
-        if (ServiceManager.ObjectTable.SearchById(objId) is not IPlayerCharacter
-            sourceChar) return;
-        ServiceManager.Logger.Debug("Examine character found");
+
+        if (ServiceManager.ObjectTable.SearchByEntityId(entityId) is not IPlayerCharacter
+            sourceChar)
+        {
+            ServiceManager.Logger.Error(
+                $"Examined character not found in world (eid:{entityId:x8})");
+            return;
+        }
+        ServiceManager.Logger.Debug($"Examine character found: {sourceChar.Name}");
         if (!ServiceManager.HrtDataManager.Ready)
         {
             ServiceManager.Logger.Error(
@@ -134,9 +140,17 @@ internal class ExamineGearDataProvider : IGearDataProvider
             targetClass.Level = sourceChar.Level;
         try
         {
-            CsHelpers.UpdateGearFromInventoryContainer(InventoryType.Examine, targetClass,
-                                                       _configuration.MinILvlDowngrade);
-            ServiceManager.Logger.Information($"Updated Gear for: {targetChar.Name} @ {targetChar.HomeWorld?.Name}");
+            if (CsHelpers.UpdateGearFromInventoryContainer(InventoryType.Examine, targetClass,
+                                                           _configuration.MinILvlDowngrade))
+            {
+                ServiceManager.Logger.Information(
+                    $"Updated Gear for: {targetChar.Name} @ {targetChar.HomeWorld?.Name}");
+            }
+            else
+            {
+                ServiceManager.Logger.Error(
+                    $"Something went wrong while updating gear for:{targetChar.Name} @ {targetChar.HomeWorld?.Name}");
+            }
         }
         catch (Exception e)
         {
