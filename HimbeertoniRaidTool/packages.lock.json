@@ -8,6 +8,16 @@
         "resolved": "2.1.13",
         "contentHash": "rMN1omGe8536f4xLMvx9NwfvpAc9YFFfeXJ1t4P4PE6Gu8WCIoFliR1sh07hM+bfODmesk/dvMbji7vNI+B/pQ=="
       },
+      "Google.Apis.Sheets.v4": {
+        "type": "Direct",
+        "requested": "[1.68.0.3498, )",
+        "resolved": "1.68.0.3498",
+        "contentHash": "9w4l0JCbXs9JF8XsacgoAb0lRb/EimQOPGCZ6MzRqs7ASJWBqdr9oXZG7H5y1n9AoH+CE1BycBVUuBcWwoPcmw==",
+        "dependencies": {
+          "Google.Apis": "1.68.0",
+          "Google.Apis.Auth": "1.68.0"
+        }
+      },
       "GoogleSheetsWrapper": {
         "type": "Direct",
         "requested": "[2.0.17, )",
@@ -75,15 +85,6 @@
         "contentHash": "pAqwa6pfu53UXCR2b7A/PAPXeuVg6L1OFw38WckN27NU2+mf+KTjoEg2YGv/f0UyKxzz7DxF1urOTKg/6dTP9g==",
         "dependencies": {
           "Newtonsoft.Json": "13.0.3"
-        }
-      },
-      "Google.Apis.Sheets.v4": {
-        "type": "Transitive",
-        "resolved": "1.68.0.3476",
-        "contentHash": "mRcYfpzCryObtxoeKsYEhiSROmd1gizd8tpSLhq9WSeZ+bSNIIIy9ZeKzq4hlnu41pwlxFEKzIVr0ISER7kvsQ==",
-        "dependencies": {
-          "Google.Apis": "1.68.0",
-          "Google.Apis.Auth": "1.68.0"
         }
       },
       "HtmlAgilityPack": {
