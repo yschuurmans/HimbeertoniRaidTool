@@ -1,7 +1,9 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 using System.Net;
-using System.Net.Http;
+using Dalamud.Plugin.Services;
+using HimbeertoniRaidTool.Common.Extensions;
 using HimbeertoniRaidTool.Plugin.Connectors.Utils;
+using HimbeertoniRaidTool.Plugin.DataManagement;
 using HimbeertoniRaidTool.Plugin.Localization;
 using HimbeertoniRaidTool.Plugin.UI;
 using Newtonsoft.Json;
@@ -9,32 +11,41 @@ using Newtonsoft.Json;
 namespace HimbeertoniRaidTool.Plugin.Connectors;
 
 [SuppressMessage("ReSharper", "ClassNeverInstantiated.Local")]
-internal class EtroConnector : WebConnector, IReadOnlyGearConnector
+internal sealed class EtroConnector : WebConnector, IReadOnlyGearConnector
 {
-    public const string WEB_BASE_URL = "https://etro.gg/";
-    public const string API_BASE_URL = WEB_BASE_URL + "api/";
-    public const string GEARSET_API_BASE_URL = API_BASE_URL + "gearsets/";
-    public const string GEARSET_WEB_BASE_URL = WEB_BASE_URL + "gearset/";
-    public const string RELIC_API_BASE_URL = API_BASE_URL + "relic/";
-    public const string BIS_API_BASE_URL = GEARSET_API_BASE_URL + "bis/";
-    private readonly Dictionary<Job, Dictionary<string, string>> _bisCache;
+    private const string WEB_BASE_URL = "https://etro.gg/";
+    private const string API_BASE_URL = WEB_BASE_URL + "api/";
+    private const string GEARSET_API_BASE_URL = API_BASE_URL + "gearsets/";
+    private const string GEARSET_WEB_BASE_URL = WEB_BASE_URL + "gearset/";
+    private const string RELIC_API_BASE_URL = API_BASE_URL + "relic/";
+    private const string BIS_API_BASE_URL = GEARSET_API_BASE_URL + "bis/";
+    private readonly Dictionary<Job, List<ExternalBiSDefinition>> _bisCache = [];
+    private readonly Dictionary<uint, FoodItem> _foodLookup = [];
     private readonly TaskManager _taskManager;
-    internal EtroConnector(TaskManager tm, ILogger log) : base(new RateLimit(4, new TimeSpan(0, 0, 30)))
+    private readonly HrtDataManager _hrtDataManager;
+    internal EtroConnector(HrtDataManager hrtDataManager, TaskManager tm, ILogger log, IDataManager dataManager) : base(
+        log, new RateLimit(10, new TimeSpan(0, 0, 30)))
     {
+        _hrtDataManager = hrtDataManager;
         _taskManager = tm;
-        _bisCache = new Dictionary<Job, Dictionary<string, string>>();
-        foreach (Job job in Enum.GetValues<Job>())
+        foreach (var job in Enum.GetValues<Job>())
         {
-            _bisCache.Add(job, new Dictionary<string, string>());
+            _bisCache.Add(job, []);
         }
         _taskManager.RegisterTask(new HrtTask<HrtUiMessage>(FillBisList,
                                                             msg =>
                                                             {
                                                                 if (msg.MessageType == HrtUiMessageType.Failure)
-                                                                    log.Error(msg.Message);
+                                                                    Logger.Error(msg.Message);
                                                                 else
-                                                                    log.Info(msg.Message);
+                                                                    Logger.Info(msg.Message);
                                                             }, "Load BiS list from etro"));
+        foreach (var food in dataManager.Excel.GetSheet<LuminaItem>()
+                                        .Where(ItemExtensions.IsFood))
+        {
+            _foodLookup[food.ItemAction.Value.Data[1]] = new FoodItem(food.RowId);
+
+        }
     }
     private static JsonSerializerSettings JsonSettings => new()
     {
@@ -48,17 +59,17 @@ internal class EtroConnector : WebConnector, IReadOnlyGearConnector
         MissingMemberHandling = MissingMemberHandling.Ignore,
         ReferenceLoopHandling = ReferenceLoopHandling.Ignore,
     };
-    public IReadOnlyDictionary<string, string> GetBiS(Job job) => _bisCache[job];
-    public string GetDefaultBiS(Job job) => _bisCache[job].Keys.FirstOrDefault("");
-    public string GetName(string id)
+    public IList<ExternalBiSDefinition> GetBiSList(Job job) => _bisCache[job];
+    public ExternalBiSDefinition GetDefaultBiS(Job job) => _bisCache[job].FirstOrDefault(new ExternalBiSDefinition());
+    public IList<ExternalBiSDefinition> GetPossibilities(string id)
     {
-        if (id.Equals("")) return string.Empty;
-        HttpResponseMessage? httpResponse = MakeWebRequest(GEARSET_API_BASE_URL + id);
-        if (httpResponse is not { IsSuccessStatusCode: true }) return string.Empty;
+        if (id.Equals("")) return [];
+        var httpResponse = MakeWebRequest(GEARSET_API_BASE_URL + id);
+        if (httpResponse is not { IsSuccessStatusCode: true }) return [];
         var readTask = httpResponse.Content.ReadAsStringAsync();
         readTask.Wait();
         var etroSet = JsonConvert.DeserializeObject<EtroGearSet>(readTask.Result, JsonSettings);
-        return etroSet?.name ?? string.Empty;
+        return etroSet?.name is null ? [] : [new ExternalBiSDefinition(GearSetManager.Etro, id, 0, etroSet.name)];
     }
     private HrtUiMessage FillBisList()
     {
@@ -68,16 +79,17 @@ internal class EtroConnector : WebConnector, IReadOnlyGearConnector
             return failureMessage;
         var sets = JsonConvert.DeserializeObject<EtroGearSet[]>(jsonResponse, JsonSettings);
         if (sets == null) return failureMessage;
-        foreach (EtroGearSet set in sets)
+        foreach (var set in sets)
         {
             if (set.id != null)
-                _bisCache[set.job][set.id] = set.name ?? set.id;
+                _bisCache[set.job].Add(new ExternalBiSDefinition(GearSetManager.Etro, set.id, 0, set.name ?? set.id));
         }
         return new HrtUiMessage(GeneralLoc.EtroConnector_FillBisList_Success, HrtUiMessageType.Success);
     }
 
     public bool BelongsToThisService(string url) => url.StartsWith(WEB_BASE_URL);
-    public string GetId(string url) => url[GEARSET_WEB_BASE_URL.Length..];
+    public string GetId(string url) => BelongsToThisService(url) ? url[GEARSET_WEB_BASE_URL.Length..] : url;
+    public string GetWebUrl(string id) => GEARSET_WEB_BASE_URL + id;
     public void RequestGearSetUpdate(GearSet set, Action<HrtUiMessage>? messageCallback = null,
                                      string taskName = "Etro Update")
     {
@@ -93,15 +105,15 @@ internal class EtroConnector : WebConnector, IReadOnlyGearConnector
 
     public HrtUiMessage UpdateGearSet(GearSet set)
     {
-        HrtUiMessage errorMessage = new(string.Format(GeneralLoc.EtroConnector_GetGearSet_Error, set.Name),
-                                        HrtUiMessageType.Failure);
+        HrtUiMessage failureMessage = new(string.Format(GeneralLoc.EtroConnector_GetGearSet_Error, set.Name),
+                                          HrtUiMessageType.Failure);
         if (set.ExternalId.Equals(""))
-            return errorMessage;
-        errorMessage.Message = $"{errorMessage.Message} ({set.ExternalId})";
+            return failureMessage;
+        failureMessage = new HrtUiMessage($"{failureMessage.Message} ({set.ExternalId})", HrtUiMessageType.Failure);
 
-        HttpResponseMessage? httpResponse = MakeWebRequest(GEARSET_API_BASE_URL + set.ExternalId);
+        var httpResponse = MakeWebRequest(GEARSET_API_BASE_URL + set.ExternalId);
         if (httpResponse == null)
-            return errorMessage;
+            return failureMessage;
         if (httpResponse.StatusCode == HttpStatusCode.NotFound)
         {
             set.ManagedBy = GearSetManager.Hrt;
@@ -113,10 +125,13 @@ internal class EtroConnector : WebConnector, IReadOnlyGearConnector
         readTask.Wait();
         var etroSet = JsonConvert.DeserializeObject<EtroGearSet>(readTask.Result, JsonSettings);
         if (etroSet == null)
-            return errorMessage;
+            return failureMessage;
         set.Name = etroSet.name ?? "";
         set.TimeStamp = etroSet.lastUpdate;
         set.LastExternalFetchDate = DateTime.UtcNow;
+        if (!_foodLookup.TryGetValue(etroSet.food, out var newFood))
+            Logger.Warning($"Did not find food {etroSet.food} for set {set.Name} ({set.ExternalId})");
+        set.Food = newFood;
         HrtUiMessage successMessage = new(string.Format(GeneralLoc.EtroConnector_GetGearSet_Success, set.Name),
                                           HrtUiMessageType.Success);
         FillItem(etroSet.weapon, GearSetSlot.MainHand);
@@ -135,7 +150,7 @@ internal class EtroConnector : WebConnector, IReadOnlyGearConnector
             return successMessage;
         foreach ((string slot, string relicId) in etroSet.relics)
         {
-            EtroRelic? relic = GetRelicItem(relicId);
+            var relic = GetRelicItem(relicId);
             if (relic is null) continue;
             switch (slot)
             {
@@ -143,7 +158,7 @@ internal class EtroConnector : WebConnector, IReadOnlyGearConnector
                     FillRelicItem(relic, GearSetSlot.MainHand);
                     break;
                 default:
-                    ServiceManager.Logger.Error(string.Format(GeneralLoc.EtroConnector_GetGearSet_RelicError, slot));
+                    Logger.Error(string.Format(GeneralLoc.EtroConnector_GetGearSet_RelicError, slot));
                     break;
             }
         }
@@ -162,7 +177,7 @@ internal class EtroConnector : WebConnector, IReadOnlyGearConnector
         {
             set[slot] = new GearItem(id)
             {
-                IsHq = ServiceManager.ItemInfo.CanBeCrafted(id),
+                IsHq = new Item(id).CanBeHq,
             };
             string idString = id + slot switch
             {
@@ -173,26 +188,26 @@ internal class EtroConnector : WebConnector, IReadOnlyGearConnector
             if (!(etroSet.materia?.TryGetValue(idString, out var materia) ?? false)) return;
             foreach (uint? matId in materia.Values.Where(matId => matId.HasValue))
             {
-                set[slot].AddMateria(new HrtMateria(matId!.Value));
+                set[slot].AddMateria(new MateriaItem(matId!.Value));
             }
         }
     }
-    internal HrtUiMessage UpdateAllSets(bool updateAll, int maxAgeInDays)
+    public HrtUiMessage UpdateAllSets(bool updateAll, int maxAgeInDays)
     {
-        DateTime oldestValid = DateTime.UtcNow - new TimeSpan(maxAgeInDays, 0, 0, 0);
+        var oldestValid = DateTime.UtcNow - new TimeSpan(maxAgeInDays, 0, 0, 0);
         int totalCount = 0;
         int updateCount = 0;
-        foreach (GearSet gearSet in ServiceManager.HrtDataManager.GearDb.GetValues()
-                                                  .Where(set => set.ManagedBy == GearSetManager.Etro))
+        foreach (var gearSet in _hrtDataManager.GearDb.GetValues()
+                                               .Where(set => set.ManagedBy == GearSetManager.Etro))
         {
             totalCount++;
             if (gearSet.IsEmpty || gearSet.LastExternalFetchDate < oldestValid && updateAll)
             {
-                HrtUiMessage message = UpdateGearSet(gearSet);
+                var message = UpdateGearSet(gearSet);
                 if (message.MessageType is HrtUiMessageType.Error or HrtUiMessageType.Failure)
-                    ServiceManager.Logger.Error(message.Message);
+                    Logger.Error(message.Message);
                 if (message.MessageType is HrtUiMessageType.Warning)
-                    ServiceManager.Logger.Warning(message.Message);
+                    Logger.Warning(message.Message);
                 updateCount++;
             }
         }
@@ -290,6 +305,7 @@ internal class EtroConnector : WebConnector, IReadOnlyGearConnector
         public uint wrists { get; set; }
         public uint fingerL { get; set; }
         public uint fingerR { get; set; }
+        public uint food { get; set; }
         public Dictionary<string, string>? relics { get; set; }
     }
 }
