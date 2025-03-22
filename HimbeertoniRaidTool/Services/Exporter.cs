@@ -1,4 +1,5 @@
-﻿using ImGuiNET;
+﻿using HimbeertoniRaidTool.Common.Extensions;
+using ImGuiNET;
 using Newtonsoft.Json;
 using System.IO;
 using System.Threading.Tasks;
@@ -20,7 +21,7 @@ public class Exporter
         {
             Name = x.Name,
             MainClass = x.MainClass?.Name,
-            Gear = x.MainClass.CurGear.Select(MapItem),
+            Gear = x.MainClass?.CurGear.Select(MapItem),
             BisLink = x.MainClass?.BisSets.FirstOrDefault()?.ExternalId
         });
 
@@ -47,7 +48,7 @@ public class Exporter
         return new
         {
             Slot = slotName,
-            Source = item.Source.ToString(),
+            Source = item.Source().ToString(),
             Name = item.Name,
             ItemLevel = item.ItemLevel
         };

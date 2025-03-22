@@ -629,7 +629,7 @@ internal class LootmasterUi : HrtWindow
         // Add button to export the current group to a CSV file
         if (ImGuiHelper.Button(FontAwesomeIcon.FileExport.ToIconString(), "##exportGroup"))
         {
-            Exporter.ExportGroupData(CurrentGroup);
+            Exporter.ExportGroupData(CurrentGroup).Wait();
         }
 
         ImGui.NewLine();
