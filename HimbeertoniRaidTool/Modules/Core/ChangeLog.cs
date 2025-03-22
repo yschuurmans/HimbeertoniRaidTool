@@ -8,6 +8,17 @@ public class ChangeLog
 {
     public static readonly IReadOnlyList<SingleVersionChangelog> Entries = new List<SingleVersionChangelog>
     {
+        new(new Version(1, 8, 0, 4))
+        {
+            MinorFeatures =
+            {
+                new ChangeLogEntry(
+                    General,
+                    "Home world transfer /name changes of known characters are now automatically applied with gear updates"),
+                new ChangeLogEntry(ChangeLogEntryCategory.System,
+                                   "Some changes to item handling which should reduce size of database files"),
+            },
+        },
         new(new Version(1, 8, 0, 3))
         {
             NotableFeatures =
