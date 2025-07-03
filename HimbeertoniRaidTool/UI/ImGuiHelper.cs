@@ -3,6 +3,7 @@ using System.Numerics;
 using System.Runtime.CompilerServices;
 using Dalamud.Interface;
 using Dalamud.Interface.Utility.Raii;
+using HimbeertoniRaidTool.Common.Extensions;
 using HimbeertoniRaidTool.Plugin.Localization;
 using HimbeertoniRaidTool.Plugin.Modules;
 using ImGuiNET;
@@ -56,9 +57,11 @@ public static class ImGuiHelper
 
     public static bool Button(string label, string? tooltip, bool enabled = true, Vector2 size = default)
     {
-        ImGui.BeginDisabled(!enabled);
-        bool result = ImGui.Button(label.Capitalized(), size);
-        ImGui.EndDisabled();
+        bool result;
+        using (ImRaii.Disabled(!enabled))
+        {
+            result = ImGui.Button(label.Capitalized(), size);
+        }
         if (tooltip is not null && ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
             ImGui.SetTooltip(tooltip);
         return result;
@@ -74,11 +77,12 @@ public static class ImGuiHelper
     public static bool Button(FontAwesomeIcon icon, string id, string? tooltip, bool enabled = true,
                               Vector2 size = default)
     {
-        ImGui.PushFont(UiBuilder.IconFont);
-        ImGui.BeginDisabled(!enabled);
-        bool result = ImGui.Button($"{icon.ToIconChar()}##{id}", size);
-        ImGui.EndDisabled();
-        ImGui.PopFont();
+        bool result;
+        {
+            using var font = ImRaii.PushFont(UiBuilder.IconFont);
+            using var disabled = ImRaii.Disabled(!enabled);
+            result = ImGui.Button($"{icon.ToIconChar()}##{id}", size);
+        }
         if (tooltip is not null) AddTooltip(tooltip);
         return result;
     }
@@ -91,7 +95,7 @@ public static class ImGuiHelper
     }
     public static bool GearUpdateButtons(Player p, IHrtModule module, bool showMultiple = false, Vector2 size = default)
     {
-        ImGui.PushID(p.NickName);
+        using var id = ImRaii.PushId(p.NickName);
         bool result = false;
         string inspectTooltip = GeneralLoc.Ui_btn_Inspect_tt;
         bool canInspect = true;
@@ -111,17 +115,16 @@ public static class ImGuiHelper
         }
         if (!showMultiple)
         {
-            if (ImGui.BeginPopupContextItem("##gearUpdateContextMenu"))
+            using var popupContextItem = ImRaii.ContextPopupItem("##gearUpdateContextMenu");
+            if (popupContextItem)
             {
                 if (DrawInspectButton(true))
                     ImGui.CloseCurrentPopup();
                 ImGui.SameLine();
                 if (DrawLodestoneButton(true))
                     ImGui.CloseCurrentPopup();
-                ImGui.EndPopup();
             }
         }
-        ImGui.PopID();
         return result;
         bool DrawInspectButton(bool insideContextMenu = false)
         {
@@ -154,7 +157,7 @@ public static class ImGuiHelper
 
     public static bool ExternalGearUpdateButton(GearSet set, IHrtModule module, Vector2 size = default)
     {
-        ImRaii.PushId(set.LocalId.ToString());
+        using var id = ImRaii.PushId(set.LocalId.ToString());
         if (module.Services.ConnectorPool.TryGetConnector(set.ManagedBy, out var connector))
         {
             bool result = Button(FontAwesomeIcon.Download, set.ExternalId,
@@ -200,7 +203,9 @@ public static class ImGuiHelper
         toName ??= t => names[t.HasValue ? Array.IndexOf(Enum.GetValues(typeof(T)), t) : 0];
         select ??= _ => true;
         bool result = false;
-        if (!ImGui.BeginCombo(label, toName(value))) return result;
+        using var combo = ImRaii.Combo(label, toName(value));
+        if (!combo)
+            return result;
         if (allowNull && ImGui.Selectable(toName(null)))
         {
             value = null;
@@ -212,7 +217,6 @@ public static class ImGuiHelper
             value = choice;
             result = true;
         }
-        ImGui.EndCombo();
         return result;
     }
 
@@ -236,7 +240,9 @@ public static class ImGuiHelper
         ComboDic.TryAdd(id, (false, false));
         (bool toggle, bool wasEnterClickedLastTime) = ComboDic[id];
         selected = default;
-        if (!ImGui.BeginCombo(id + (toggle ? "##x" : ""), preview, flags)) return false;
+        using var combo = ImRaii.Combo(id + (toggle ? "##x" : ""), preview, flags);
+        if (!combo)
+            return false;
         if (wasEnterClickedLastTime || ImGui.IsKeyPressed(ImGuiKey.Escape))
         {
             toggle = !toggle;
@@ -270,20 +276,16 @@ public static class ImGuiHelper
         foreach (var row in _filtered.Cast<T>())
         {
             bool hovered = _hoveredItem == i;
-            ImGui.PushID(i);
+            using var imguiId = ImRaii.PushId(i);
 
             if (ImGui.Selectable(toName(row), hovered) || enterClicked && hovered)
             {
                 selected = row;
-                ImGui.PopID();
-                ImGui.EndCombo();
                 return true;
             }
-            ImGui.PopID();
             i++;
         }
 
-        ImGui.EndCombo();
         return false;
     }
 }
