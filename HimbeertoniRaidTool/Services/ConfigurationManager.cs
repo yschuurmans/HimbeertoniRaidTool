@@ -1,13 +1,12 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 using System.Numerics;
+using Dalamud.Bindings.ImGui;
 using Dalamud.Interface.Utility.Raii;
 using Dalamud.Plugin;
 using HimbeertoniRaidTool.Plugin.DataManagement;
 using HimbeertoniRaidTool.Plugin.Localization;
 using HimbeertoniRaidTool.Plugin.Modules;
 using HimbeertoniRaidTool.Plugin.UI;
-using ImGuiNET;
-using ICloneable = HimbeertoniRaidTool.Common.Data.ICloneable;
 
 namespace HimbeertoniRaidTool.Plugin.Services;
 
@@ -179,7 +178,9 @@ public interface IHrtConfigUi
     public void Cancel();
 }
 
-public interface IHrtConfigData : ICloneable
+public interface IHrtConfigData<out T> : IHrtConfigData, ICloneable<T>;
+
+public interface IHrtConfigData
 {
     public void AfterLoad(HrtDataManager dataManager);
     public void BeforeSave();

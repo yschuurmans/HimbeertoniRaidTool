@@ -1,12 +1,13 @@
 ﻿using System.Numerics;
+using Dalamud.Bindings.ImGui;
 using Dalamud.Interface.Utility.Raii;
 using HimbeertoniRaidTool.Common.Extensions;
 using HimbeertoniRaidTool.Common.Localization;
 using HimbeertoniRaidTool.Common.Security;
+using HimbeertoniRaidTool.Common.Services;
 using HimbeertoniRaidTool.Plugin.DataManagement;
 using HimbeertoniRaidTool.Plugin.Localization;
 using HimbeertoniRaidTool.Plugin.UI;
-using ImGuiNET;
 using Newtonsoft.Json;
 
 namespace HimbeertoniRaidTool.Plugin.Modules.LootMaster;
@@ -189,7 +190,7 @@ internal class LootMasterConfiguration : ModuleConfiguration<LootMasterConfigura
             ImGui.Separator();
             ImGui.Text(LootmasterLoc.ConfigUi_hdg_RolePriority);
             ImGui.Text($"{LootmasterLoc.ConfigUi_txt_currentPrio}: {_dataCopy.RolePriority}");
-            _dataCopy.RolePriority.DrawEdit(ImGui.InputInt);
+            _dataCopy.RolePriority.DrawEdit((string s, ref int i) => ImGui.InputInt(s, ref i));
         }
 
         public void OnHide() { }
@@ -212,7 +213,7 @@ internal class LootMasterConfiguration : ModuleConfiguration<LootMasterConfigura
     }
 
     [JsonObject(MemberSerialization = MemberSerialization.OptIn, ItemNullValueHandling = NullValueHandling.Ignore)]
-    internal sealed class ConfigData : IHrtConfigData
+    internal sealed class ConfigData : IHrtConfigData<ConfigData>
     {
         [JsonIgnore]
         private string? _itemFormatStringCache;
@@ -338,5 +339,7 @@ internal class LootMasterConfiguration : ModuleConfiguration<LootMasterConfigura
             }
             return string.Join(' ', result);
         }
+
+        public ConfigData Clone() => CloneService.Clone(this);
     }
 }

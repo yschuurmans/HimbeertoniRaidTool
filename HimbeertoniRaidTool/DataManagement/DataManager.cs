@@ -30,7 +30,7 @@ public class HrtDataManager
     internal IDataBaseTable<GearSet> GearDb => _gearDb.Database;
     internal readonly IModuleConfigurationManager ModuleConfigurationManager;
     private readonly List<JsonConverter> _idRefConverters = [];
-    private static readonly JsonSerializerSettings _jsonSettings = new()
+    private static readonly JsonSerializerSettings JsonSettings = new()
     {
         Formatting = Formatting.Indented,
         TypeNameAssemblyFormatHandling = TypeNameAssemblyFormatHandling.Simple,
@@ -110,7 +110,7 @@ public class HrtDataManager
     {
         try
         {
-            Util.WriteAllTextSafe(file.FullName, data);
+            FilesystemUtil.WriteAllTextSafe(file.FullName, data);
             return true;
         }
         catch (Win32Exception e)
@@ -140,7 +140,7 @@ public class HrtDataManager
         return savedSuccessful;
     }
 
-    private class DataBaseWrapper<TEntry> where TEntry : IHasHrtId, new()
+    private class DataBaseWrapper<TEntry> where TEntry : class, IHasHrtId<TEntry>, new()
     {
         private readonly HrtDataManager _parent;
         private readonly IDataBaseTable<TEntry> _database;
@@ -162,6 +162,7 @@ public class HrtDataManager
             _parent = parent;
             _database = database;
             _file = new FileInfo($"{parent._saveDir}{Path.DirectorySeparatorChar}{fileName}");
+            _parent._idRefConverters.Add(_database.GetOldRefConverter());
             _parent._idRefConverters.Add(_database.GetRefConverter());
         }
         internal bool Load()
@@ -175,7 +176,7 @@ public class HrtDataManager
             }
             try
             {
-                return _database.Load(_jsonSettings, jsonData);
+                return _database.Load(JsonSettings, jsonData);
             }
             catch (JsonSerializationException e)
             {
@@ -184,8 +185,8 @@ public class HrtDataManager
                 return false;
             }
         }
-        private bool LoadEmpty() => _database.Load(_jsonSettings, "[]");
-        internal bool Save() => _parent.TryWrite(_file, _database.Serialize(_jsonSettings));
+        private bool LoadEmpty() => _database.Load(JsonSettings, "[]");
+        internal bool Save() => _parent.TryWrite(_file, _database.Serialize(JsonSettings));
     }
 
 }
