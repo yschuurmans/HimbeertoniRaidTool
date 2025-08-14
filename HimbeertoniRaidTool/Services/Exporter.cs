@@ -26,8 +26,8 @@ public class Exporter
         });
 
         var json = JsonConvert.SerializeObject(usefullData, Formatting.Indented);
-        var fileLocation = Path.Combine(BaseFolder, "groupData.json");
-        File.WriteAllText(fileLocation, json);
+        //var fileLocation = Path.Combine(BaseFolder, "groupData.json");
+        //File.WriteAllText(fileLocation, json);
 
         // if UploadToSpreadsheet takes longer than 15 seconds, stop the process
         // UploadToSpreadsheet(json);
