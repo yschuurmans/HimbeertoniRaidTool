@@ -6,47 +6,36 @@ using Lumina.Excel.Sheets;
 
 namespace HimbeertoniRaidTool.Plugin.Services;
 
-internal unsafe class CharacterInfoService
+internal unsafe class CharacterInfoService(IObjectTable objectTable, IPartyList partyList, IPlayerState playerState)
 {
-    private readonly IObjectTable _objectTable;
-    private readonly IPartyList _partyList;
-    private readonly IClientState _clientState;
-    private static InfoProxyPartyMember* PartyInfo => InfoProxyPartyMember.Instance();
+    private static InfoProxyPartyMember* _partyInfo => InfoProxyPartyMember.Instance();
     private readonly Dictionary<string, ulong> _cache = new();
-    private readonly HashSet<string> _notFound = new();
-    private DateTime _lastPrune;
-    private static readonly TimeSpan PruneInterval = TimeSpan.FromSeconds(10);
+    private readonly HashSet<string> _notFound = [];
+    private DateTime _lastPrune = DateTime.Now;
+    private static readonly TimeSpan _pruneInterval = TimeSpan.FromSeconds(10);
 
-    internal CharacterInfoService(IObjectTable objectTable, IPartyList partyList, IClientState clientState)
-    {
-        _objectTable = objectTable;
-        _partyList = partyList;
-        _clientState = clientState;
-        _lastPrune = DateTime.Now;
-    }
 
     public ulong GetContentId(IPlayerCharacter? character)
     {
         if (character == null)
             return 0;
-        foreach (var partyMember in _partyList)
+        foreach (var partyMember in partyList)
         {
             bool found =
-                partyMember.ObjectId == character.GameObjectId
+                partyMember.EntityId == character.EntityId
              || partyMember.Name.Equals(character.Name) && partyMember.World.RowId == character.CurrentWorld.RowId;
             if (found)
                 return (ulong)partyMember.ContentId;
         }
 
-        if (PartyInfo == null)
+        if (_partyInfo == null)
             return 0;
-        for (uint i = 0; i < PartyInfo->InfoProxyCommonList.DataSize; ++i)
+        for (uint i = 0; i < _partyInfo->DataSize; ++i)
         {
-            var entry = PartyInfo->InfoProxyCommonList.GetEntry(i);
+            var entry = _partyInfo->GetEntry(i);
             if (entry == null) continue;
             if (entry->HomeWorld != character.HomeWorld.RowId) continue;
-            string name = entry->NameString;
-            if (name.Equals(character.Name.TextValue))
+            if (entry->NameString.Equals(character.Name.TextValue))
                 return entry->ContentId;
         }
 
@@ -58,12 +47,11 @@ internal unsafe class CharacterInfoService
         Update();
         if (_cache.TryGetValue(name, out ulong id))
         {
-            result = _objectTable.SearchById(id) as IPlayerCharacter;
+            result = objectTable.SearchById(id) as IPlayerCharacter;
             if (result?.Name.TextValue == name
              && (w is null || w.Value.RowId == result.HomeWorld.RowId))
                 return true;
-            else
-                _cache.Remove(name);
+            _cache.Remove(name);
         }
 
         if (_notFound.Contains(name))
@@ -73,7 +61,7 @@ internal unsafe class CharacterInfoService
         }
 
         //This is really slow (comparatively)
-        result = _objectTable.FirstOrDefault(
+        result = objectTable.FirstOrDefault(
             o =>
             {
                 var p = o as IPlayerCharacter;
@@ -92,11 +80,12 @@ internal unsafe class CharacterInfoService
             return false;
         }
     }
-    public bool IsSelf(Character character) => Character.CalcCharId(_clientState.LocalContentId) == character.CharId;
+    public bool IsSelf(Character character) =>
+        playerState.IsLoaded && Character.CalcCharId(playerState.ContentId) == character.CharId;
 
     private void Update()
     {
-        if (DateTime.Now - _lastPrune <= PruneInterval) return;
+        if (DateTime.Now - _lastPrune <= _pruneInterval) return;
         _lastPrune = DateTime.Now;
         if (_notFound.Count == 0) return;
         _notFound.Clear();

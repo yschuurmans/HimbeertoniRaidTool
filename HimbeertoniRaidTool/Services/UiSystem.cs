@@ -1,6 +1,7 @@
 using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Interface.Textures.TextureWraps;
 using Dalamud.Interface.Windowing;
+using HimbeertoniRaidTool.Plugin.DataManagement;
 using HimbeertoniRaidTool.Plugin.Modules;
 using HimbeertoniRaidTool.Plugin.Modules.Core;
 using HimbeertoniRaidTool.Plugin.UI;
@@ -10,66 +11,77 @@ namespace HimbeertoniRaidTool.Plugin.Services;
 
 public interface IWindowSystem
 {
-    public IEnumerable<HrtWindow> Windows { get; }
     void Draw();
     void AddWindow(HrtWindow ui);
     void RemoveAllWindows();
-    void RemoveWindow(HrtWindow hrtWindow);
 }
 
 public interface IUiSystem : IWindowSystem
 {
-    public EditWindowFactory EditWindows { get; }
-    public UiHelpers Helpers { get; }
-    public IDalamudTextureWrap GetIcon(Item item);
-    public IDalamudTextureWrap GetIcon(uint iconId, bool hq);
-    public bool DrawConditionsMet();
-    public ExcelSheet<TType> GetExcelSheet<TType>() where TType : struct, IExcelRow<TType>;
+    EditWindowFactory EditWindows { get; }
+    UiHelpers Helpers { get; }
+    IDalamudTextureWrap GetIcon(Item item);
+    IDalamudTextureWrap GetIcon(uint iconId, bool hq);
+    bool DrawConditionsMet();
+    ExcelSheet<TType> GetExcelSheet<TType>() where TType : struct, IExcelRow<TType>;
 
-    public void OpenSettingsWindow();
+    void OpenSearchWindow<TData>(Action<TData> onSelect, Action? onCancel = null)
+        where TData : class, IHrtDataTypeWithId<TData>;
+    IDataBaseTable<TData> GetDbTable<TData>() where TData : class, IHrtDataTypeWithId<TData>;
+
+    void OpenSettingsWindow();
 }
 
 internal static class UiSystemFactory
 {
-    public static IUiSystem CreateUiSystem(IHrtModule module, IModuleServiceContainer services) =>
-        new ModuleScopedUiSystem(module, services);
-    public static IUiSystem CreateUiSystem(IGlobalServiceContainer services) => new GlobalUiSystem(services);
+    public static IUiSystem CreateUiSystem<TModule>(IModuleServiceContainer services)
+        where TModule : IHrtModule =>
+        new ModuleScopedUiSystem<TModule>(services);
+    public static IUiSystem CreateGlobalUiSystem(IGlobalServiceContainer services) => new GlobalUiSystem(services);
 
     private abstract class UiSystem : IUiSystem
     {
         private readonly DalamudWindowSystem _windowSystem;
         public EditWindowFactory EditWindows { get; }
         public UiHelpers Helpers { get; }
-        private IGlobalServiceContainer Services { get; }
+        private IGlobalServiceContainer _services { get; }
 
         protected UiSystem(DalamudWindowSystem windowSystem, IGlobalServiceContainer services)
         {
             _windowSystem = windowSystem;
-            Services = services;
-            EditWindows = new EditWindowFactory(Services);
-            Helpers = new UiHelpers(this, Services);
+            _services = services;
+            EditWindows = new EditWindowFactory(_services);
+            Helpers = new UiHelpers(this, _services);
 
         }
 
         public IDalamudTextureWrap GetIcon(Item item) => GetIcon(item.Icon, item is HqItem { IsHq: true });
-        public IDalamudTextureWrap GetIcon(uint iconId, bool hq) => Services.IconCache.LoadIcon(iconId, hq);
+        public IDalamudTextureWrap GetIcon(uint iconId, bool hq) => _services.IconCache.LoadIcon(iconId, hq);
         public ExcelSheet<TType> GetExcelSheet<TType>() where TType : struct, IExcelRow<TType> =>
-            Services.DataManager.GetExcelSheet<TType>()
+            _services.DataManager.GetExcelSheet<TType>()
          ?? throw new NullReferenceException("UiSystem was not initialized");
 
+        public void OpenSearchWindow<TData>(Action<TData> onSelect, Action? onCancel = null)
+            where TData : class, IHrtDataTypeWithId<TData> => _services.HrtDataManager.GetTable<TData>()
+                                                                       .OpenSearchWindow(this, onSelect, onCancel);
+
+        public IDataBaseTable<TData> GetDbTable<TData>() where TData : class, IHrtDataTypeWithId<TData>
+            => _services.HrtDataManager.GetTable<TData>();
+
         public bool DrawConditionsMet() =>
-            !(CoreModule.UiConfig.HideInCombat && Services.Condition[ConditionFlag.InCombat])
-         && !Services.Condition[ConditionFlag.BetweenAreas];
+            !(CoreModule.UiConfig.HideInCombat && _services.Condition[ConditionFlag.InCombat])
+         && !_services.Condition[ConditionFlag.BetweenAreas];
 
-        public void OpenSettingsWindow() => Services.ConfigManager.Show();
+        public void OpenSettingsWindow() => _services.ConfigManager.Show();
 
-        public IEnumerable<HrtWindow> Windows => _windowSystem.Windows;
         public void Draw()
         {
-            var toRemove = Windows.Where(window => window is { IsOpen: false, Persistent: false }).ToList();
+            var toRemove = _windowSystem.Windows.Where(window => window is { IsOpen: false, Persistent: false })
+                                        .ToList();
             foreach (var window in toRemove)
             {
-                Services.Logger.Debug($"Cleaning Up Window: {window.WindowName}");
+                _services.Logger.Debug("Cleaning Up Window: {WindowWindowName}", window.WindowName);
+                window.Dispose();
                 _windowSystem.RemoveWindow(window);
             }
 
@@ -82,11 +94,11 @@ internal static class UiSystemFactory
         }
 
         public void RemoveAllWindows() => _windowSystem.RemoveAllWindows();
-        public void RemoveWindow(HrtWindow hrtWindow) => _windowSystem.RemoveWindow(hrtWindow);
     }
 
-    private class ModuleScopedUiSystem(IHrtModule module, IModuleServiceContainer services)
-        : UiSystem(new DalamudWindowSystem(new WindowSystem($"HRT::{module.InternalName}")), services);
+    private class ModuleScopedUiSystem<TModule>(IModuleServiceContainer services)
+        : UiSystem(new DalamudWindowSystem(new WindowSystem($"HRT::{TModule.InternalName}")), services)
+        where TModule : IHrtModule;
 
     private class GlobalUiSystem(IGlobalServiceContainer services)
         : UiSystem(new DalamudWindowSystem(new WindowSystem($"HRT")), services);

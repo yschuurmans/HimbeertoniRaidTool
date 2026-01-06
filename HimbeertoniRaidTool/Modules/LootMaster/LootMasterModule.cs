@@ -14,26 +14,36 @@ using Character = HimbeertoniRaidTool.Common.Data.Character;
 namespace HimbeertoniRaidTool.Plugin.Modules.LootMaster;
 
 // ReSharper disable once ClassNeverInstantiated.Global
-internal sealed class LootMasterModule : IHrtModule
+internal sealed class LootMasterModule : IHrtModule<LootMasterModule, LootMasterConfiguration>
 {
+    #region Static
+
+    public static string Name => "Loot Master";
+    public static string InternalName => "LootMaster";
+
+    public static string Description => "";
+
+    public static bool CanBeDisabled => false;
+
+    #endregion
+
     private readonly LootmasterUi _ui;
-    internal readonly LootMasterConfiguration ConfigImpl;
-    public LootMasterModule()
+    private LootMasterModule(IModuleServiceContainer services)
     {
-        Services = ServiceManager.GetServiceContainer(this);
-        LootmasterLoc.Culture = new CultureInfo(Services.PluginInterface.UiLanguage);
-        ConfigImpl = new LootMasterConfiguration(this);
+        Services = services;
+        LootmasterLoc.Culture = Services.LocalizationManager.CurrentLocale;
+        Configuration = new LootMasterConfiguration(this);
         _ui = new LootmasterUi(this);
         Services.ClientState.Login += OnLogin;
 
     }
+    public static LootMasterModule Create(IModuleServiceContainer services) => new(services);
+
     //Properties
-    internal List<RaidGroup> RaidGroups => ConfigImpl.Data.RaidGroups;
+    internal List<RaidGroup> RaidGroups => Configuration.Data.RaidGroups;
     //Interface Properties
-    public string Name => "Loot Master";
-    public string InternalName => "LootMaster";
-    public IHrtConfiguration Configuration => ConfigImpl;
-    public string Description => "";
+    public LootMasterConfiguration Configuration { get; }
+
     public IModuleServiceContainer Services { get; }
     public event Action? UiReady;
     public IEnumerable<HrtCommand> Commands => new List<HrtCommand>
@@ -58,9 +68,9 @@ internal sealed class LootMasterModule : IHrtModule
             {
                 TypeLocked = true,
             };
-            if (Services.HrtDataManager.RaidGroupDb.TryAdd(solo))
+            if (Services.HrtDataManager.GetTable<RaidGroup>().TryAdd(solo))
             {
-                Services.Logger.Info("Add solo group");
+                Services.Logger.Information("Add solo group");
                 RaidGroups.Insert(0, solo);
             }
 
@@ -69,7 +79,9 @@ internal sealed class LootMasterModule : IHrtModule
             Services.TaskManager.RunOnFrameworkThread(OnLogin);
     }
 
-    public void OnLanguageChange(string langCode) => LootmasterLoc.Culture = new CultureInfo(langCode);
+    public void ShowUi() => _ui.Show();
+
+    public void OnLanguageChange(CultureInfo culture) => LootmasterLoc.Culture = culture;
     public void PrintUsage(string command, string args)
     {
         var stringBuilder = new SeStringBuilder()
@@ -91,7 +103,7 @@ internal sealed class LootMasterModule : IHrtModule
     }
 
 
-    public void Dispose() => ConfigImpl.Save(Services.HrtDataManager.ModuleConfigurationManager);
+    public void Dispose() => Configuration.Save(Services.HrtDataManager.ModuleConfigurationManager);
 
     public void HandleMessage(HrtUiMessage message)
     {
@@ -105,21 +117,24 @@ internal sealed class LootMasterModule : IHrtModule
     {
         var soloPlayer = RaidGroups[0][0];
         if (!soloPlayer.Filled || !soloPlayer.Characters.Any())
-            FillPlayerFromSelf(soloPlayer);
-        ulong curCharId =
-            Character.CalcCharId(
-                Services.CharacterInfoService.GetContentId(Services.ClientState.LocalPlayer));
-        Services.Logger.Debug($"OnLogin: CurCharID: {curCharId}");
+            FillPlayer(soloPlayer, null, true);
+        if (!Services.PlayerState.IsLoaded) return;
+        ulong curCharId = Character.CalcCharId(Services.PlayerState.ContentId);
+        Services.Logger.Debug("OnLogin: CurCharID: {CurCharId}", curCharId);
         if (curCharId != 0)
         {
-            Services.Logger.Info("Switching Solo Char");
+            Services.Logger.Information("Switching Solo Char");
             if (soloPlayer.Characters.Any(c => c.CharId == curCharId))
                 soloPlayer.MainChar = soloPlayer.Characters.First(c => c.CharId == curCharId);
             else
-                AddCurrentCharacter(soloPlayer);
+            {
+                var character = new Character();
+                FillCharacter(ref character, null, true);
+                soloPlayer.MainChar = character;
+            }
         }
 
-        if (ConfigImpl.Data.OpenOnStartup)
+        if (Configuration.Data.OpenOnStartup)
             _ui.Show();
         UiReady?.Invoke();
     }
@@ -129,57 +144,78 @@ internal sealed class LootMasterModule : IHrtModule
         var target = Services.TargetManager.Target;
         return target is IPlayerCharacter character && FillPlayer(player, character);
     }
-    private void FillPlayerFromSelf(Player player)
+    private bool FillPlayer(Player player, IPlayerCharacter? source, bool useSelf = false)
     {
-        var character = Services.ClientState.LocalPlayer;
-        if (character != null)
-            FillPlayer(player, character);
-    }
-    private bool FillPlayer(Player player, IPlayerCharacter source)
-    {
-        if (player.LocalId.IsEmpty && !Services.HrtDataManager.PlayerDb.TryAdd(player)) return false;
+        var selfInfo = Services.PlayerState;
+        string playerName;
+        if (useSelf)
+        {
+            if (!selfInfo.IsLoaded) return false;
+            playerName = selfInfo.CharacterName;
+        }
+        else
+        {
+            if (source == null) return false;
+            playerName = source.Name.TextValue;
+        }
+        playerName = playerName.Split(' ')[0];
+        if (player.LocalId.IsEmpty && !Services.HrtDataManager.GetTable<Player>().TryAdd(player)) return false;
         if (player.NickName.IsNullOrEmpty())
-            player.NickName = source.Name.TextValue.Split(' ')[0];
+            player.NickName = playerName;
         var c = new Character();
-        bool result = FillCharacter(ref c, source);
+        bool result = FillCharacter(ref c, source, useSelf);
         player.MainChar = c;
         return result;
     }
 
-    private void AddCurrentCharacter(Player player)
+
+    private bool FillCharacter(ref Character destination, IPlayerCharacter? source, bool useSelf = false)
     {
-        var sourceCharacter = Services.ClientState.LocalPlayer;
-        var character = new Character();
-        if (sourceCharacter == null) return;
-        FillCharacter(ref character, sourceCharacter);
-        player.MainChar = character;
-    }
-    private bool FillCharacter(ref Character destination, IPlayerCharacter source)
-    {
-        Services.Logger.Debug($"Filling character: {source.Name}");
-        ulong charId = Character.CalcCharId(Services.CharacterInfoService.GetContentId(source));
-        if (Services.HrtDataManager.CharDb.Search(
-                CharacterDb.GetStandardPredicate(charId, source.HomeWorld.RowId, source.Name.TextValue),
-                out var dbChar))
+        string characterName;
+        uint homeWorldId;
+        ulong charId;
+        Job curJob;
+        int level;
+        if (useSelf)
+        {
+            if (!Services.PlayerState.IsLoaded) return false;
+            characterName = Services.PlayerState.CharacterName;
+            homeWorldId = Services.PlayerState.HomeWorld.RowId;
+            charId = Character.CalcCharId(Services.PlayerState.ContentId);
+            curJob = (Job)Services.PlayerState.ClassJob.RowId;
+            level = Services.PlayerState.Level;
+        }
+        else
+        {
+            if (source is null) return false;
+            characterName = source.Name.TextValue;
+            homeWorldId = source.HomeWorld.RowId;
+            charId = Character.CalcCharId(Services.CharacterInfoService.GetContentId(source));
+            curJob = source.GetJob();
+            level = source.Level;
+        }
+        Services.Logger.Debug("Filling character: {SourceName}", characterName);
+
+        if (Services.HrtDataManager.GetTable<Character>().Search(
+                CharacterDb.GetStandardPredicate(charId, homeWorldId, characterName), out var dbChar))
         {
             destination = dbChar;
         }
         else
         {
-            destination.HomeWorldId = source.HomeWorld.RowId;
-            destination.Name = source.Name.TextValue;
+            destination.HomeWorldId = homeWorldId;
+            destination.Name = characterName;
             destination.CharId = charId;
-            if (!Services.HrtDataManager.CharDb.TryAdd(destination)) return false;
+            if (!Services.HrtDataManager.GetTable<Character>().TryAdd(destination)) return false;
         }
-        var curJob = source.GetJob();
-        Services.Logger.Debug($"Found job: {curJob}");
+        Services.Logger.Debug("Found job: {CurJob}", curJob);
         if (!curJob.IsCombatJob()) return true;
         bool isNewJob = destination[curJob] is null;
         var curClass = destination[curJob] ?? destination.AddClass(curJob);
         if (isNewJob)
         {
-            curClass.Level = source.Level;
-            var gearDb = Services.HrtDataManager.GearDb;
+            curClass.Level = level;
+            var gearDb = Services.HrtDataManager.GetTable<GearSet>();
             var defaultBis = Services.ConnectorPool.GetDefaultBiS(curClass.Job);
             if (!gearDb.Search(defaultBis.Equals, out var bisSet))
             {
@@ -200,7 +236,7 @@ internal sealed class LootMasterModule : IHrtModule
     internal void AddGroup(RaidGroup group, bool getGroupInfos)
     {
         if (group.LocalId.IsEmpty)
-            Services.HrtDataManager.RaidGroupDb.TryAdd(group);
+            Services.HrtDataManager.GetTable<RaidGroup>().TryAdd(group);
         RaidGroups.Add(group);
         if (!getGroupInfos)
             return;
@@ -222,7 +258,7 @@ internal sealed class LootMasterModule : IHrtModule
                 FillPlayer(group[0], target);
             }
             else
-                FillPlayerFromSelf(group[0]);
+                FillPlayer(group[0], null, true);
             return;
         }
 
@@ -294,12 +330,12 @@ internal sealed class LootMasterModule : IHrtModule
         {
             var p = group[pos];
             p.NickName = pm.Name.TextValue.Split(' ')[0];
-            if (!Services.HrtDataManager.CharDb.Search(
+            if (!Services.HrtDataManager.GetTable<Character>().Search(
                     CharacterDb.GetStandardPredicate(Character.CalcCharId((ulong)pm.ContentId), pm.World.RowId,
                                                      pm.Name.TextValue), out var character))
             {
                 character = new Character(pm.Name.TextValue, pm.World.Value.RowId);
-                Services.HrtDataManager.CharDb.TryAdd(character);
+                Services.HrtDataManager.GetTable<Character>().TryAdd(character);
                 bool canParseJob = Enum.TryParse(pm.ClassJob.Value.Abbreviation.ExtractText(), out Job c);
                 if (Services.CharacterInfoService.TryGetChar(out var pc, p.MainChar.Name,
                                                              p.MainChar.HomeWorld) && canParseJob && c != Job.ADV)
@@ -311,7 +347,7 @@ internal sealed class LootMasterModule : IHrtModule
                     {
                         ExternalId = defaultBis.Id,
                     };
-                    Services.HrtDataManager.GearDb.TryAdd(bis);
+                    Services.HrtDataManager.GetTable<GearSet>().TryAdd(bis);
                     p.MainChar.MainClass.CurBis = bis;
                 }
             }
@@ -321,7 +357,7 @@ internal sealed class LootMasterModule : IHrtModule
 
     public void OnCommand(string command, string args)
     {
-        Services.Logger.Debug($"Lootmaster module handling command: {command} args: \"{args}\"");
+        Services.Logger.Debug("Lootmaster module handling command: {Command} args: \"{Args}\"", command, args);
         switch (args)
         {
             case "toggle":

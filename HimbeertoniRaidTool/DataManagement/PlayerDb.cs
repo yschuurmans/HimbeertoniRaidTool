@@ -4,6 +4,7 @@ using HimbeertoniRaidTool.Common.Security;
 using HimbeertoniRaidTool.Plugin.Localization;
 using HimbeertoniRaidTool.Plugin.UI;
 using Newtonsoft.Json;
+using Serilog;
 
 namespace HimbeertoniRaidTool.Plugin.DataManagement;
 
@@ -38,7 +39,7 @@ internal class PlayerDb(IIdProvider idProvider, IEnumerable<JsonConverter> conve
                 $"{GeneralLoc.DBSearchPlayerUi_txt_selected}: {(Selected is null ? $"{GeneralLoc.CommonTerms_None}" : $"{Selected.NickName} ({Selected.MainChar.Name})")}");
             ImGui.Separator();
             ImGui.Text($"{GeneralLoc.DBSearchPlayerUi_hdg_selectPlayer}:");
-            if (ImGuiHelper.SearchableCombo("##search", out var
+            if (InputHelper.SearchableCombo("##search", out var
                                                 newSelected, string.Empty, Database.GetValues(),
                                             p => $"{p.NickName} ({p.MainChar.Name})"))
             {

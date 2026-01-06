@@ -3,6 +3,7 @@ using Dalamud.Bindings.ImGui;
 using Dalamud.Interface;
 using Dalamud.Interface.Utility.Raii;
 using HimbeertoniRaidTool.Plugin.Localization;
+using HimbeertoniRaidTool.Plugin.Modules.Planner;
 using HimbeertoniRaidTool.Plugin.UI;
 
 namespace HimbeertoniRaidTool.Plugin.Modules.LootMaster.Ui;
@@ -12,15 +13,16 @@ internal class LootSessionUi : HrtWindow
     private const string RULES_POPUP_ID = "RulesButtonPopup";
     private readonly UiSortableList<LootRule> _ruleListUi;
     private readonly LootSession _session;
-    private readonly LootMasterModule _module;
-    private LootMasterConfiguration.ConfigData CurConfig => _module.ConfigImpl.Data;
+    private IModuleManifest<PlannerModule> _plannerModule { get; }
+    private LootMasterConfiguration.ConfigData _curConfig { get; }
 
     internal LootSessionUi(LootMasterModule module, InstanceWithLoot lootSource, RaidGroup group) : base(
         module.Services.UiSystem)
     {
-        _module = module;
+        _plannerModule = module.Services.ModuleManager.PlannerModule;
+        _curConfig = module.Configuration.Data;
         _session = new LootSession(module, lootSource, group);
-        _ruleListUi = new UiSortableList<LootRule>(LootRuling.PossibleRules, CurConfig.LootRuling.RuleSet);
+        _ruleListUi = new UiSortableList<LootRule>(LootRuling.PossibleRules, _curConfig.LootRuling.RuleSet);
 
         MinSize = new Vector2(600, 300);
         //Size = new Vector2(1100, 600);
@@ -39,8 +41,7 @@ internal class LootSessionUi : HrtWindow
         ImGui.Text($"{LootmasterLoc.LootsessionUi_txt_state}: {_session.CurrentState.FriendlyName()}");
         ImGui.SameLine();
 
-        if (ImGuiHelper.Button(FontAwesomeIcon.Cogs, "##RulesButton",
-                               LootmasterLoc.LootSessionUi_btn_tt_Rules))
+        if (ImGuiHelper.Button(FontAwesomeIcon.Cogs, "##RulesButton", LootmasterLoc.LootSessionUi_btn_tt_Rules))
             ImGui.OpenPopup(RULES_POPUP_ID);
         using (var popup = ImRaii.Popup(RULES_POPUP_ID))
         {
@@ -61,7 +62,7 @@ internal class LootSessionUi : HrtWindow
                 if (combo)
                 {
                     // ReSharper disable once ForeachCanBePartlyConvertedToQueryUsingAnotherGetEnumerator
-                    foreach (var group in _module.ConfigImpl.Data.RaidGroups)
+                    foreach (var group in _curConfig.RaidGroups)
                     {
                         if (ImGui.Selectable(group.Name) && group != _session.Group)
                             _session.Group = group;
@@ -69,6 +70,26 @@ internal class LootSessionUi : HrtWindow
                 }
             }
 
+            if (_plannerModule.Loaded)
+            {
+                ImGui.SameLine();
+                using var combo = ImRaii.Combo("##session", _session.RaidSession?.ToString() ?? "None");
+                if (combo)
+                {
+                    if (ImGui.Selectable("None"))
+                        _session.RaidSession = null;
+                    foreach (var session in _plannerModule.Module.GetRaidSessions())
+                    {
+                        if (ImGui.Selectable(session.ToString()) && session != _session.RaidSession)
+                            _session.RaidSession = session;
+                    }
+                }
+            }
+            ImGui.SameLine();
+            if (ImGuiHelper.AddButton<RaidSession>("activeSession", _plannerModule.Loaded) && _plannerModule.Loaded)
+                _plannerModule.Module.CreateActiveRaidSession(_session.Group, rs => _session.RaidSession = rs);
+            ImGui.SameLine();
+            ImGui.Text(" ");
             ImGui.SameLine();
             if (ImGuiHelper.Button(LootmasterLoc.LootSessionUi_btn_Calc, LootmasterLoc.LootSessionUi_btn_tt_Calc))
                 _session.Evaluate();
@@ -84,57 +105,28 @@ internal class LootSessionUi : HrtWindow
 
     private void DrawLootSelection()
     {
-        const float itemSize = 80f;
-        const int itemsPerRow = 7;
-        int rows = (int)Math.Ceiling(_session.Loot.Count / (float)itemsPerRow);
-        using var disabled = ImRaii.Disabled(_session.CurrentState >= LootSession.State.LootChosen);
-        for (int row = 0; row < rows; row++)
+        var itemSize = new Vector2(75) * ScaleFactor;
+
+        using var table = ImRaii.Table("##LootSelection", 10, ImGuiTableFlags.SizingFixedFit);
+        if (!table) return;
+        for (int i = 0; i < _session.Loot.Count; i++)
         {
-            using var id = ImRaii.PushId(row);
-
-            using var table = ImRaii.Table("##LootSelection", itemsPerRow,
-                                           ImGuiTableFlags.NoBordersInBody | ImGuiTableFlags.SizingFixedFit);
-            if (!table)
-                continue;
-
-            for (int col = 0; col < itemsPerRow; col++)
+            ImGui.TableNextColumn();
+            (var item, int count) = _session.Loot[i];
+            ImGui.SetCursorPosX(ImGui.GetCursorPosX() + itemSize.X * 0.125f);
+            ImGui.Image(UiSystem.GetIcon(item.Icon, item.CanBeHq).Handle, itemSize * 0.75f);
+            if (ImGui.IsItemHovered())
             {
-                if (row * itemsPerRow + col >= _session.Loot.Count)
-                {
-                    ImGui.TableNextRow();
-                    break;
-                }
-
-                var item = _session.Loot[row * itemsPerRow + col].item;
-                ImGui.TableNextColumn();
-                ImGui.SetCursorPosX(ImGui.GetCursorPosX() + 10f * ScaleFactor);
-                ImGui.Image(_module.Services.IconCache[item.Icon].Handle,
-                            Vector2.One * ScaleFactor * (itemSize - 30f));
-                if (ImGui.IsItemHovered())
-                {
-                    using var tooltip = ImRaii.Tooltip();
-                    item.Draw();
-                }
+                using var tooltip = ImRaii.Tooltip();
+                item.Draw();
             }
-
-            for (int col = 0; col < itemsPerRow; col++)
+            int count2 = count;
+            ImGui.SetNextItemWidth(itemSize.X);
+            if (ImGui.InputInt($"##Input{item.Id}", ref count2, 1))
             {
-                if (row * itemsPerRow + col >= _session.Loot.Count)
-                {
-                    ImGui.TableNextRow();
-                    break;
-                }
-
-                (var item, int count) = _session.Loot[row * itemsPerRow + col];
-                ImGui.TableNextColumn();
-                int count2 = count;
-                ImGui.SetNextItemWidth(ScaleFactor * (itemSize - 10f));
-                if (ImGui.InputInt($"##Input{item.Id}", ref count2))
-                {
-                    if (count2 < 0)
-                        count2 = 0;
-                    _session.Loot[row * itemsPerRow + col] = (item, count2);
-                }
+                if (count2 < 0)
+                    count2 = 0;
+                _session.Loot[i] = (item, count2);
             }
         }
     }
@@ -172,7 +164,7 @@ internal class LootSessionUi : HrtWindow
         {
             using (ImRaii.Group())
             {
-                ImGui.Image(_module.Services.IconCache[item.Icon].Handle,
+                ImGui.Image(UiSystem.GetIcon(item.Icon, item.CanBeHq).Handle,
                             Vector2.One * ImGui.GetTextLineHeightWithSpacing());
                 ImGui.SameLine();
                 ImGui.Text(item.Name);

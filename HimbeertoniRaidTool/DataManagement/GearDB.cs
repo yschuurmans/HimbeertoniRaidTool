@@ -8,6 +8,7 @@ using HimbeertoniRaidTool.Common.Security;
 using HimbeertoniRaidTool.Plugin.Localization;
 using HimbeertoniRaidTool.Plugin.UI;
 using Newtonsoft.Json;
+using Serilog;
 using Action = System.Action;
 
 namespace HimbeertoniRaidTool.Plugin.DataManagement;
@@ -87,12 +88,12 @@ internal class GearDb : DataBaseTable<GearSet>
             ImGui.InputText("##Name", ref _searchTerm, 50);
             ImGui.SameLine();
             ImGui.SetNextItemWidth(55 * ScaleFactor);
-            ImGuiHelper.Combo("##Job", ref _job);
+            InputHelper.Combo("##Job", ref _job);
             ImGui.SameLine();
             ImGui.Text("Service");
             ImGui.SameLine();
             ImGui.SetNextItemWidth(100 * ScaleFactor);
-            ImGuiHelper.Combo("##Service", ref _manager);
+            InputHelper.Combo("##Service", ref _manager);
             ImGui.SameLine();
             ImGui.Text(LootmasterLoc.GearSetSearchWindow_iLvlRange);
             ImGui.SameLine();

@@ -12,7 +12,7 @@ env:
   PLUGIN_NAME: 'Himbeertoni Raid Tool'
   PLUGIN_NAME_INTERNAL: 'HimbeertoniRaidTool'
   PROJ_FILE: 'HimbeertoniRaidTool/HimbeertoniRaidTool.Plugin.csproj'
-  PLUGIN_PACKAGE: 'HimbeertoniRaidTool/bin/Release/HimbeertoniRaidTool/latest.zip'
+  PLUGIN_PACKAGE: 'HimbeertoniRaidTool/bin/x64/Release/HimbeertoniRaidTool/latest.zip'
   CUSTOM_REPO_URL: ''
 jobs:
   version-check:
@@ -28,7 +28,7 @@ jobs:
           fetch-depth: 2
       - name: Get new version
         id: newver
-        uses: mavrosxristoforos/get-xml-info@2.0
+        uses: mavrosxristoforos/get-xml-info@afaa5058ead44cfaff92c6a861b46dd7a8929f60
         with:
           xml-file: ${{env.PROJ_FILE}}
           xpath: '/Project/PropertyGroup/Version'
@@ -36,7 +36,7 @@ jobs:
         run: 'git checkout HEAD^'
       - name: Get old version
         id: oldver
-        uses: mavrosxristoforos/get-xml-info@2.0
+        uses: mavrosxristoforos/get-xml-info@afaa5058ead44cfaff92c6a861b46dd7a8929f60
         with:
           xml-file: ${{env.PROJ_FILE}}
           xpath: '/Project/PropertyGroup/Version'
@@ -82,13 +82,13 @@ jobs:
         with:
           cmd: 'yq .changelog ./HimbeertoniRaidTool/HimbeertoniRaidTool.yaml'
       - name: Write commit
-        uses: sandstromviktor/toml-editor@2.0.0
+        uses: sandstromviktor/toml-editor@2596b2da64ea9aed1d4d4e77f0646ec30b9e88ea
         with:
           file: "HimbeertoniRaidTool/manifest.toml"
           key: "plugin.commit"
           value: "${{ github.sha }}"
       - name: Write changelog
-        uses: sandstromviktor/toml-editor@2.0.0
+        uses: sandstromviktor/toml-editor@2596b2da64ea9aed1d4d4e77f0646ec30b9e88ea
         with:
           file: "HimbeertoniRaidTool/manifest.toml"
           key: "plugin.changelog"
@@ -100,34 +100,23 @@ jobs:
   create_release:
     name: 'Create Tag and Release'
     runs-on: ubuntu-latest
-    if: ${{vars.CREATE_RELEASE}}
+    if: ${{vars.CREATE_RELEASE && github.ref_name != 'testing'}}
     needs: [ create_manifest, build, version-check ]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Create Tag
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{ github.token }}
-          script: |
-            github.git.createRef({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              ref: "refs/tags/${{needs.version-check.outputs.version}}",
-              sha: context.sha
-            })
       - name: 'Download packaged build'
         uses: actions/download-artifact@v4
         with:
           name: package
           path: artifacts
       - name: 'Create Release'
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b
         with:
+          target_commitish: ${{github.sha}}
           body: ${{needs.create_manifest.outputs.changelog}}
           tag_name: ${{needs.version-check.outputs.version}}
           generate_release_notes: true
-          prerelease: ${{github.ref_name}} == testing
           files: artifacts/*
   deploy_d17:
     name: Commit to D17 fork
@@ -139,7 +128,7 @@ jobs:
     needs: [ create_manifest, build, version-check ]
     steps:
       - name: Sync D17 fork
-        uses: AbdulmelikKalkan/sync-fork-upstream@v1.3
+        uses: AbdulmelikKalkan/sync-fork-upstream@6ec773469487cc30a2631d2cfafc1b0f1f82ca6d
         env:
           ACCESS_TOKEN: ${{secrets.DEPLOY_PAT}}
         with:
@@ -154,12 +143,13 @@ jobs:
           fetch-depth: 0
           ref: main
           path: d17repo
-      - name: Downlaod Manifest
+      - name: Download Manifest
         uses: actions/download-artifact@v4
         with:
           name: manifest
           path: artifacts
       - name: Create testing branch
+        if: ${{github.ref_name == 'testing'}}
         run: |
           cd d17repo
           git config --local user.email "action@github.com"
@@ -170,14 +160,16 @@ jobs:
           git add testing/live/${{env.PLUGIN_NAME_INTERNAL}}/manifest.toml
           git commit -m "[Testing] ${{env.PLUGIN_NAME}} ${{env.version}}" -m "${{env.changelog}}"
       - name: Push testing
-        uses: ad-m/github-push-action@master
+        if: ${{github.ref_name == 'testing'}}
+        uses: ad-m/github-push-action@77c5b412c50b723d2a4fbc6d71fb5723bcd439aa
         with:
           repository: ${{github.repository_owner}}/DalamudPluginsD17
           github_token: ${{ secrets.DEPLOY_PAT }}
           directory: d17repo
           branch: testing-${{env.PLUGIN_NAME_INTERNAL}}-${{env.version}}
       - name: Create stable branch
-        if: '${{ github.ref_name != ''testing''}}'
+        if: ${{github.ref_name != 'testing'}}
+        continue-on-error: true
         run: |
           cd d17repo
           git config --local user.email "action@github.com"
@@ -185,10 +177,12 @@ jobs:
           git branch --track ${{env.PLUGIN_NAME_INTERNAL}}-${{env.version}} main
           git checkout ${{env.PLUGIN_NAME_INTERNAL}}-${{env.version}}
           cp ../artifacts/manifest.toml stable/${{env.PLUGIN_NAME_INTERNAL}}/manifest.toml
+          git rm testing/live/${{env.PLUGIN_NAME_INTERNAL}}/manifest.toml
           git add stable/${{env.PLUGIN_NAME_INTERNAL}}/manifest.toml
           git commit -m "${{env.PLUGIN_NAME}} ${{env.version}}" -m "${{env.changelog}}"
       - name: Push stable
-        uses: ad-m/github-push-action@master
+        if: ${{github.ref_name != 'testing'}}
+        uses: ad-m/github-push-action@77c5b412c50b723d2a4fbc6d71fb5723bcd439aa
         with:
           repository: ${{github.repository_owner}}/DalamudPluginsD17
           github_token: ${{ secrets.DEPLOY_PAT }}

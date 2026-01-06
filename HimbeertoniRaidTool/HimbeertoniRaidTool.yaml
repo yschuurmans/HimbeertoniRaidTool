@@ -10,4 +10,5 @@ tags:
 internal_name: HimbeertoniRaidTool
 repo_url: https://github.com/Koenari/HimbeertoniRaidTool/
 changelog: >2+
-      General: Updated for 7.3
+      General: Updated for 7.4
+      Loot Session: All non weapon drops are now pre-selected in loot session

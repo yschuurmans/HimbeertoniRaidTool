@@ -8,21 +8,19 @@ using Lumina.Excel;
 
 namespace HimbeertoniRaidTool.Plugin.UI;
 
-internal abstract class SelectItemWindow<T>(IUiSystem uiSystem, Action<T> onSave, Action<T?> onCancel) : HrtWindow(
+internal abstract class SelectItemWindow<T>(IUiSystem uiSystem, Action<T> onSave, Action<T?>? onCancel) : HrtWindow(
     uiSystem,
     null, ImGuiWindowFlags.NoCollapse)
     where T : Item
 {
-    // ReSharper disable once StaticMemberInGenericType
-    protected ExcelSheet<LuminaItem> Sheet =>
-        UiSystem.GetExcelSheet<LuminaItem>();
+    protected ExcelSheet<LuminaItem> Sheet => UiSystem.GetExcelSheet<LuminaItem>();
     protected T? Item;
-    protected virtual bool CanSave { get; set; } = true;
+    protected virtual bool CanSave => Item != null;
 
 
     public override void Draw()
     {
-        if (CanSave && ImGuiHelper.SaveButton())
+        if (ImGuiHelper.SaveButton(CanSave ? null : GeneralLoc.SelectItemWindow_SaveBtn_tt_Nothing_chosen, CanSave))
             Save();
         ImGui.SameLine();
         if (ImGuiHelper.CancelButton())
@@ -37,13 +35,13 @@ internal abstract class SelectItemWindow<T>(IUiSystem uiSystem, Action<T> onSave
         if (Item != null)
             onSave(Item);
         else
-            onCancel(Item);
+            onCancel?.Invoke(Item);
         Hide();
     }
 
     protected void Cancel()
     {
-        onCancel(Item);
+        onCancel?.Invoke(Item);
         Hide();
     }
 
@@ -139,7 +137,7 @@ internal class SelectGearItemWindow : SelectItemWindow<GearItem>
         }
         else
         {
-            _slots = Item?.Slots ?? Array.Empty<GearSetSlot>();
+            _slots = Item?.Slots ?? [];
         }
 
         _lockJob = job.HasValue;
@@ -158,7 +156,7 @@ internal class SelectGearItemWindow : SelectItemWindow<GearItem>
         ImGui.SetNextItemWidth(65f * ScaleFactor);
         using (ImRaii.Disabled(_lockJob))
         {
-            if (ImGuiHelper.Combo("##job", ref _job, job => job.HasValue ? job.Value.ToString() : "-"))
+            if (InputHelper.Combo("##job", ref _job, job => job.HasValue ? job.Value.ToString() : "-"))
                 ReevaluateItems();
         }
         ImGui.SameLine();
@@ -167,7 +165,7 @@ internal class SelectGearItemWindow : SelectItemWindow<GearItem>
         using (ImRaii.Disabled(_lockSlot))
         {
             var slot = _slots.FirstOrDefault(GearSetSlot.None);
-            if (ImGuiHelper.Combo("##slot", ref slot, t => t.FriendlyName()))
+            if (InputHelper.Combo("##slot", ref slot, t => t.FriendlyName()))
             {
                 _slots = [slot];
                 ReevaluateItems();
@@ -308,6 +306,31 @@ internal class SelectMateriaWindow : SelectItemWindow<MateriaItem>
             mat.Draw();
         }
     }
+}
 
+internal sealed class SelectLootItemWindow : SelectItemWindow<Item>
+{
+    private readonly InstanceWithLoot _instance;
 
+    protected override bool CanSave => false;
+    public SelectLootItemWindow(IUiSystem uiSystem,
+                                InstanceWithLoot instance,
+                                Action<Item> onSave,
+                                Action<Item?>? onCancel = null) : base(uiSystem, onSave, onCancel)
+    {
+        _instance = instance;
+        Title = string.Format(GeneralLoc.SelectLootItemWindow_Title, instance.Name);
+        Size = new Vector2(400f, 200f);
+        SizeCondition = ImGuiCond.Appearing;
+        OpenCentered = true;
+    }
+
+    protected override void DrawItemSelection()
+    {
+        foreach (var loot in _instance.PossibleItems)
+        {
+            if (ImGuiHelper.Button(loot.Name, GeneralLoc.SelectItemUi_btn_tt_useThis))
+                Save(loot);
+        }
+    }
 }

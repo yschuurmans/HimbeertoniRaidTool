@@ -8,6 +8,7 @@ using FFXIVClientStructs.FFXIV.Component.GUI;
 using HimbeertoniRaidTool.Common.Extensions;
 using HimbeertoniRaidTool.Plugin.Connectors;
 using HimbeertoniRaidTool.Plugin.DataManagement;
+using Serilog;
 
 namespace HimbeertoniRaidTool.Plugin.Services;
 
@@ -86,25 +87,27 @@ internal class ExamineGearDataProvider : IGearDataProvider
         if (_objectTable.SearchByEntityId(entityId) is not IPlayerCharacter
             sourceChar)
         {
-            _logger.Error($"Examined character not found in world (eid:{entityId:x8})");
+            _logger.Error("Examined character not found in world (eid:{EntityId:x8})", entityId);
             return;
         }
-        _logger.Debug($"Examine character found: {sourceChar.Name}");
+        _logger.Debug("Examine character found: {SourceCharName}", sourceChar.Name);
         if (!_hrtDataManager.Ready)
         {
             _logger.Error(
-                $"Database is busy. Did not update gear for:{sourceChar.Name}@{sourceChar.HomeWorld.Value.Name}");
+                "Database is busy. Did not update gear for:{SourceCharName}@{ReadOnlySeString}", sourceChar.Name,
+                sourceChar.HomeWorld.Value.Name);
             return;
         }
 
         ulong charId = Character.CalcCharId(_characterInfoService.GetContentId(sourceChar));
 
         //Do not execute on characters not already known
-        if (!_hrtDataManager.CharDb.Search(
+        if (!_hrtDataManager.GetTable<Character>().Search(
                 CharacterDb.GetStandardPredicate(charId, sourceChar.HomeWorld.RowId, sourceChar.Name.TextValue),
                 out var targetChar))
         {
-            _logger.Debug($"Did not find character in db:{sourceChar.Name}@{sourceChar.HomeWorld.Value.Name}");
+            _logger.Debug("Did not find character in db:{SourceCharName}@{ReadOnlySeString}", sourceChar.Name,
+                          sourceChar.HomeWorld.Value.Name);
             return;
         }
 
@@ -127,25 +130,27 @@ internal class ExamineGearDataProvider : IGearDataProvider
             if (!_hrtDataManager.Ready)
             {
                 _logger.Error(
-                    $"Database is busy. Did not update gear for:{targetChar.Name}@{targetChar.HomeWorld?.Name}");
+                    "Database is busy. Did not update gear for:{TargetCharName}@{ReadOnlySeString}", targetChar.Name,
+                    targetChar.HomeWorld?.Name);
                 return;
             }
 
             targetClass = targetChar.AddClass(targetJob);
             var defaultBiS = _connectorPool.GetDefaultBiS(targetJob);
-            if (_hrtDataManager.GearDb.Search(defaultBiS.Equals, out var existingBis))
+            if (_hrtDataManager.GetTable<GearSet>().Search(defaultBiS.Equals, out var existingBis))
                 targetClass.CurBis = existingBis;
             else
             {
                 targetClass.CurBis = defaultBiS.ToGearSet();
-                if (_hrtDataManager.GearDb.TryAdd(targetClass.CurBis)
+                if (_hrtDataManager.GetTable<GearSet>().TryAdd(targetClass.CurBis)
                  && _connectorPool.TryGetConnector(defaultBiS.Service, out var connector))
                     connector.RequestGearSetUpdate(targetClass.CurBis);
             }
-            if (!_hrtDataManager.GearDb.TryAdd(targetClass.CurGear))
+            if (!_hrtDataManager.GetTable<GearSet>().TryAdd(targetClass.CurGear))
             {
                 _logger.Error(
-                    $"Could not create gearset for new job {targetJob} for {targetChar.Name}@{targetChar.HomeWorld?.Name}");
+                    "Could not create gearset for new job {TargetJob} for {TargetCharName}@{ReadOnlySeString}",
+                    targetJob, targetChar.Name, targetChar.HomeWorld?.Name);
                 return;
             }
         }
@@ -158,18 +163,21 @@ internal class ExamineGearDataProvider : IGearDataProvider
             if (CsHelpers.UpdateGearFromInventoryContainer(InventoryType.Examine, targetClass,
                                                            _configuration.MinILvlDowngrade, _logger, _hrtDataManager))
             {
-                _logger.Information($"Updated Gear for: {targetChar.Name} @ {targetChar.HomeWorld?.Name}");
+                _logger.Information("Updated Gear for: {TargetCharName} @ {ReadOnlySeString}", targetChar.Name,
+                                    targetChar.HomeWorld?.Name);
             }
             else
             {
                 _logger.Error(
-                    $"Something went wrong while updating gear for:{targetChar.Name} @ {targetChar.HomeWorld?.Name}");
+                    "Something went wrong while updating gear for:{TargetCharName} @ {ReadOnlySeString}",
+                    targetChar.Name, targetChar.HomeWorld?.Name);
             }
         }
         catch (Exception e)
         {
             _logger.Error(e,
-                          $"Something went wrong while updating gear for:{targetChar.Name} @ {targetChar.HomeWorld?.Name}");
+                          "Something went wrong while updating gear for:{TargetCharName} @ {ReadOnlySeString}",
+                          targetChar.Name, targetChar.HomeWorld?.Name);
         }
     }
 }

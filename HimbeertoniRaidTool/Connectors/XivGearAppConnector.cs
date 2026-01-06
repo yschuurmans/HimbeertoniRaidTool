@@ -5,6 +5,7 @@ using HimbeertoniRaidTool.Plugin.DataManagement;
 using HimbeertoniRaidTool.Plugin.Localization;
 using HimbeertoniRaidTool.Plugin.UI;
 using Newtonsoft.Json;
+using Serilog;
 
 namespace HimbeertoniRaidTool.Plugin.Connectors;
 
@@ -43,7 +44,7 @@ internal class XivGearAppConnector(HrtDataManager hrtDataManager, TaskManager ta
 
     public IList<ExternalBiSDefinition> GetPossibilities(string id)
     {
-        Logger.Debug($"Getting possibilities for {id}");
+        Logger.Debug("Getting possibilities for {Id}", id);
         var httpResponse = MakeWebRequest(GEAR_API_BASE_URL + id);
         if (httpResponse is null || !httpResponse.IsSuccessStatusCode) return [];
         var readTask = httpResponse.Content.ReadAsStringAsync();
@@ -141,7 +142,7 @@ internal class XivGearAppConnector(HrtDataManager hrtDataManager, TaskManager ta
         var oldestValid = DateTime.UtcNow - new TimeSpan(maxAgeInDays, 0, 0, 0);
         int totalCount = 0;
         int updateCount = 0;
-        foreach (var gearSet in hrtDataManager.GearDb.GetValues()
+        foreach (var gearSet in hrtDataManager.GetTable<GearSet>().GetValues()
                                               .Where(set => set.ManagedBy == GearSetManager.XivGear))
         {
             totalCount++;
