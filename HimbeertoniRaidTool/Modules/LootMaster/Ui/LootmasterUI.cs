@@ -630,6 +630,12 @@ internal class LootmasterUi : HrtWindow
             ImGui.SameLine();
         }
 
+        // Add button to export the current group to clipboard
+        if (ImGuiHelper.Button(FontAwesomeIcon.Upload, "##exportGroup", "Export Group to Clipboard"))
+        {
+            Exporter.ExportGroupData(CurrentGroup).Wait();
+        }
+
         ImGui.NewLine();
     }
     private void DrawSlot((GearItem, GearItem) itemTuple, SlotDrawFlags style = SlotDrawFlags.Default)
